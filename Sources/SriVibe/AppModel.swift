@@ -24,7 +24,7 @@ final class AppModel: ObservableObject {
     private let monitor = HIDRemoteMonitor()
     private let executor = ActionExecutor()
     private let nativeMediaEventSuppressor = NativeMediaEventSuppressor()
-    private let logger = Logger(subsystem: "app.srivibe.remote", category: "runtime")
+    private let logger = Logger(subsystem: "app.keymote.remote", category: "runtime")
     private let diagnosticInputMode = CommandLine.arguments.contains("--diagnose-input")
     private var gestureEngine: ButtonGestureEngine
     private var holdTimer: Timer?

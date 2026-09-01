@@ -73,29 +73,35 @@ struct SettingsRootView: View {
     }
 
     private var mappingsView: some View {
-        VStack(spacing: 0) {
-            Picker("", selection: $mappingEditor) {
-                Text(model.language == .chinese ? "遥控器布局" : "Remote layout").tag(MappingEditor.layout)
-                Text(model.language == .chinese ? "表单列表" : "Form list").tag(MappingEditor.list)
+        HStack(alignment: .top, spacing: 0) {
+            List(AppProfile.allCases, id: \.self, selection: $selectedProfile) { profile in
+                Text(profile.title(model.language))
             }
-            .pickerStyle(.segmented)
-            .padding([.horizontal, .top])
-            HStack(spacing: 0) {
-                List(AppProfile.allCases, id: \.self, selection: $selectedProfile) { profile in
-                    Text(profile.title(model.language))
+            .frame(width: 150)
+            .frame(maxHeight: .infinity)
+            Divider()
+            VStack(spacing: 0) {
+                Picker("", selection: $mappingEditor) {
+                    Text(model.language == .chinese ? "遥控器布局" : "Remote layout").tag(MappingEditor.layout)
+                    Text(model.language == .chinese ? "表单列表" : "Form list").tag(MappingEditor.list)
                 }
-                .frame(width: 150)
-                Divider()
+                .pickerStyle(.segmented)
+                .padding([.horizontal, .top])
                 mappingContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
     private var mappingContent: some View {
         if mappingEditor == .layout {
             if RemoteLayoutRegistry.supports(model.selectedDevice?.layoutID) || model.selectedDevice == nil {
-                InteractiveRemoteLayout(model: model, profile: selectedProfile, selectedButton: $selectedButton)
+                ScrollView([.horizontal, .vertical]) {
+                    InteractiveRemoteLayout(model: model, profile: selectedProfile, selectedButton: $selectedButton)
+                }
             } else {
                 ContentUnavailableView(
                     model.language == .chinese ? "该设备暂无互动布局" : "No interactive layout for this device",
@@ -204,7 +210,11 @@ private extension AppProfile {
 
 extension RemoteButton {
     func title(_ language: AppLanguage) -> String {
-        self == .playPause ? L10n.text("playPause", language) : rawValue.capitalized
+        switch self {
+        case .playPause: L10n.text("playPause", language)
+        case .mute: language == .chinese ? "静音" : "Mute"
+        default: rawValue.capitalized
+        }
     }
 }
 
@@ -222,6 +232,8 @@ extension RemoteAction {
         case .nextTerminalTab: L10n.text("nextTab", language)
         case .previousTerminalTab: L10n.text("previousTab", language)
         case .togglePlayPause: language == .chinese ? "播放 / 暂停" : "Play / Pause"
+        case .toggleMute: language == .chinese ? "切换静音" : "Toggle mute"
+        case .quitApplication: language == .chinese ? "退出当前应用" : "Quit current application"
         case .adjustVolumeUp: language == .chinese ? "调高系统音量" : "Increase system volume"
         case .adjustVolumeDown: language == .chinese ? "调低系统音量" : "Decrease system volume"
         case .switchApplication: L10n.text("switchApp", language)

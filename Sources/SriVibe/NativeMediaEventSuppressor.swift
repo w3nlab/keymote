@@ -3,7 +3,7 @@ import ApplicationServices
 import Foundation
 
 /// Prevents the Siri Remote's physical Play/Pause consumer event from reaching
-/// media applications after SriVibe has claimed that press as a remote command.
+/// media applications after Keymote has claimed that press as a remote command.
 ///
 /// HID seizing supplies the button report to this app, but macOS can still emit
 /// a `systemDefined` media-key event for consumer usage 0xCD.  An event tap is

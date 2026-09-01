@@ -1,32 +1,48 @@
-# SriVibe
+# Keymote
 
-SriVibe is a macOS menu-bar controller for the third-generation Apple Siri Remote (A2854).
+Keymote is a macOS menu-bar app that maps the third-generation Apple Siri
+Remote (A2854) to keyboard and system actions.
 
-## Current V1 scope
+## Features
 
-- Uses the paired remote's HID controls: direction ring, centre, Back, TV, and Play/Pause.
-- Automatically selects mappings for Terminal, Ghostty, Otty, Kitty, Chrome, Edge, ChatGPT, or a default profile.
-- Provides configurable tap and hold actions, with a 300–1,500 ms hold threshold.
-- Long-press TV opens the macOS application switcher; use Left/Right to
-  choose, Centre to confirm, or Back to cancel.
-- Shows in the Dock by default; this can be toggled from Settings → Device.
-- Does not capture voice, touchpad gestures, mute, or power buttons.
+- Configurable tap and long-press actions for the directional clickpad, Back,
+  TV, Play/Pause, Mute, volume, and Siri buttons.
+- An interactive Apple Siri Remote layout for selecting and editing a button.
+- App-specific profiles for Terminal, Ghostty, Otty, Kitty, Chrome, Edge, and
+  ChatGPT, plus a default profile. Profiles can inherit an action from the
+  default profile.
+- Volume buttons switch tabs in supported profiles; long-press continues to
+  adjust system volume. The default profile keeps normal system-volume control.
+- TV can open a user-selected application. Long-press TV opens the macOS
+  application switcher; use Left/Right to select, Centre to confirm, or Back
+  to cancel.
+- Chinese and English interfaces, light/dark/system appearance options, and a
+  Dock visibility setting.
 
 ## Run and build
 
 ```sh
-swift run SriVibe
+swift run Keymote
 ./scripts/build-app.sh
-open dist/SriVibe.app
+open dist/Keymote.app
 ```
 
-The app asks for Input Monitoring to read HID events and Accessibility to send configured keyboard actions. Pair the A2854 in System Settings before opening SriVibe.
+Keymote requests Input Monitoring permission to receive paired Siri Remote HID
+events and Accessibility permission to send configured keyboard actions. Pair
+the A2854 in System Settings before opening Keymote.
 
-`build-app.sh` prefers the first available local Apple Development identity, which
-keeps macOS privacy grants stable across local rebuilds. If no local identity is
-available it falls back to ad-hoc signing, for which macOS may request permissions
-again after each rebuild. Set `SRI_VIBE_SIGNING_IDENTITY` explicitly for a chosen
-identity; notarization remains a release-pipeline step.
+`build-app.sh` prefers the first local Apple Development identity so macOS
+privacy grants stay stable across local rebuilds. Set
+`KEYMOTE_SIGNING_IDENTITY` to choose one explicitly. The legacy
+`SRI_VIBE_SIGNING_IDENTITY` name remains supported for existing local setups.
 
-For safe hardware calibration, launch `open dist/SriVibe.app --args --diagnose-input`.
-It logs recognized button presses but never injects an action into another app.
+## Diagnose remote input
+
+For safe hardware calibration, run:
+
+```sh
+open dist/Keymote.app --args --diagnose-input
+```
+
+Diagnostic mode logs recognized button presses and never sends actions to
+another app.

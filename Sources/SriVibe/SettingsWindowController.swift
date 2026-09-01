@@ -11,11 +11,19 @@ final class SettingsWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "SriVibe"
+        window.title = "Keymote"
         window.contentView = NSHostingView(rootView: view)
         window.isReleasedWhenClosed = false
+        window.center()
         super.init(window: window)
     }
 
     required init?(coder: NSCoder) { nil }
+
+    func showCentered() {
+        guard let window else { return }
+        window.center()
+        showWindow(nil)
+        window.makeKeyAndOrderFront(nil)
+    }
 }

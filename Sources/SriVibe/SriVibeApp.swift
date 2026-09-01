@@ -3,7 +3,7 @@ import SwiftUI
 import SriVibeCore
 
 @main
-struct SriVibeApp: App {
+struct KeymoteApp: App {
     @NSApplicationDelegateAdaptor(ApplicationDelegate.self) private var appDelegate
 
     var body: some Scene {
@@ -39,7 +39,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showMainWindow() {
-        windowController?.showWindow(nil)
+        windowController?.showCentered()
         NSApp.activate(ignoringOtherApps: true)
     }
 

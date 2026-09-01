@@ -28,8 +28,8 @@ final class StatusBarController: NSObject {
     }
 
     private func render() {
-        item.button?.image = NSImage(systemSymbolName: model.statusSymbol, accessibilityDescription: "SriVibe")
-        item.button?.toolTip = "SriVibe — \(model.statusText)"
+        item.button?.image = NSImage(systemSymbolName: model.statusSymbol, accessibilityDescription: "Keymote")
+        item.button?.toolTip = "Keymote — \(model.statusText)"
     }
 
     private func showMenu() {

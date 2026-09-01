@@ -25,6 +25,8 @@ final class ActionExecutor {
             sendPreviousTerminalTabShortcut(for: profile)
             return "Previous terminal tab"
         case .togglePlayPause: postMediaKey(16); return "Play/Pause"
+        case .toggleMute: postMediaKey(7); return "Toggle mute"
+        case .quitApplication: key(12, flags: [.maskCommand]); return "Quit current application"
         case .switchApplication: return beginApplicationSwitcher()
         case .exitApplicationSwitcher: return cancelApplicationSwitcher()
         case .adjustVolumeUp: beginVolumeAdjustment(up: true); return "Increasing system volume"

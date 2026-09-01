@@ -40,6 +40,7 @@ public struct AppleSiriRemoteA2854Adapter: RemoteAdapter {
             case 0x45: .right
             case 0x80: .center
             case 0xCD: .playPause
+            case 0xE2: .mute
             case 0xE9: .volumeUp
             case 0xEA: .volumeDown
             case 0x60, 0x223: .tv

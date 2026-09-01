@@ -1,7 +1,7 @@
 import Foundation
 
 public enum RemoteButton: String, CaseIterable, Codable, Hashable, Sendable {
-    case up, down, left, right, center, back, tv, playPause, volumeUp, volumeDown, siri
+    case up, down, left, right, center, back, tv, playPause, mute, volumeUp, volumeDown, siri
 }
 
 public enum ButtonGesture: String, CaseIterable, Codable, Hashable, Sendable {
@@ -23,6 +23,8 @@ public enum RemoteAction: String, CaseIterable, Codable, Hashable, Sendable {
     case confirm, escape
     case nextTerminalTab, previousTerminalTab
     case togglePlayPause
+    case toggleMute
+    case quitApplication
     case adjustVolumeUp, adjustVolumeDown
     case switchApplication, exitApplicationSwitcher
     case launchSelectedApplication
@@ -111,9 +113,11 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
             .init(button: .right, gesture: .tap, action: .arrowRight),
             .init(button: .center, gesture: .tap, action: .confirm),
             .init(button: .back, gesture: .tap, action: .escape),
+            .init(button: .back, gesture: .hold, action: .quitApplication),
             .init(button: .tv, gesture: .tap, action: .launchSelectedApplication),
             .init(button: .tv, gesture: .hold, action: .switchApplication),
             .init(button: .playPause, gesture: .tap, action: .togglePlayPause),
+            .init(button: .mute, gesture: .tap, action: .toggleMute),
             .init(button: .siri, gesture: .tap, action: .none),
             .init(button: .siri, gesture: .hold, action: .none)
         ]
@@ -155,7 +159,7 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
     }()
 
     public static func allowedActions(for profile: AppProfile) -> [RemoteAction] {
-        var actions: [RemoteAction] = [.none, .arrowUp, .arrowDown, .arrowLeft, .arrowRight, .confirm, .escape, .togglePlayPause, .adjustVolumeUp, .adjustVolumeDown, .switchApplication, .exitApplicationSwitcher, .launchSelectedApplication]
+        var actions: [RemoteAction] = [.none, .arrowUp, .arrowDown, .arrowLeft, .arrowRight, .confirm, .escape, .togglePlayPause, .toggleMute, .quitApplication, .adjustVolumeUp, .adjustVolumeDown, .switchApplication, .exitApplicationSwitcher, .launchSelectedApplication]
         if profile != .default { actions.insert(.useDefault, at: 1) }
         if profile.supportsTabs {
             actions.insert(.nextTerminalTab, at: 7)

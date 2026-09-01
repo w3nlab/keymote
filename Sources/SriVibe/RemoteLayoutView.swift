@@ -17,33 +17,46 @@ struct InteractiveRemoteLayout: View {
     private var language: AppLanguage { model.language }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 24) {
+        HStack(alignment: .center, spacing: 24) {
             remote
-                .frame(width: 300, height: 430)
+                .frame(width: 210, height: 520)
             annotations
-                .frame(minWidth: 260, maxWidth: .infinity, alignment: .leading)
+                // A fixed legend width keeps the scroll content finite. In a
+                // horizontal ScrollView, an infinite-width child can otherwise
+                // push the remote under the fixed Profile sidebar.
+                .frame(width: 272, alignment: .leading)
+                // ScrollView otherwise expands to the remote's full height,
+                // defeating the HStack's centre alignment.
+                .frame(height: 400)
         }
         .padding(24)
+        .frame(minWidth: 554, alignment: .leading)
     }
 
     private var remote: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 42, style: .continuous)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(Color(nsColor: .windowBackgroundColor).opacity(0.8))
-                .overlay(RoundedRectangle(cornerRadius: 42, style: .continuous).stroke(.secondary.opacity(0.35), lineWidth: 1))
+                .frame(width: 132, height: 500)
+                .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).stroke(.secondary.opacity(0.35), lineWidth: 1))
                 .shadow(color: .black.opacity(0.16), radius: 12, y: 6)
 
-            control(.up, icon: "chevron.up", x: 150, y: 78, size: 48)
-            control(.left, icon: "chevron.left", x: 92, y: 132, size: 48)
-            control(.center, icon: "circle.fill", x: 150, y: 132, size: 56)
-            control(.right, icon: "chevron.right", x: 208, y: 132, size: 48)
-            control(.down, icon: "chevron.down", x: 150, y: 186, size: 48)
-            control(.back, icon: "chevron.left", x: 90, y: 255, size: 48)
-            control(.tv, icon: "tv", x: 210, y: 255, size: 48)
-            control(.playPause, icon: "playpause.fill", x: 150, y: 315, size: 60)
-            control(.volumeUp, icon: "plus", x: 250, y: 345, size: 34)
-            control(.volumeDown, icon: "minus", x: 250, y: 390, size: 34)
-            control(.siri, icon: "waveform", x: 55, y: 365, size: 38)
+            Circle().fill(Color.primary.opacity(0.08)).frame(width: 106, height: 106).position(x: 105, y: 88)
+            control(.up, icon: "chevron.up", x: 105, y: 45, size: 37)
+            control(.left, icon: "chevron.left", x: 62, y: 88, size: 37)
+            control(.center, icon: "circle.fill", x: 105, y: 88, size: 46)
+            control(.right, icon: "chevron.right", x: 148, y: 88, size: 37)
+            control(.down, icon: "chevron.down", x: 105, y: 131, size: 37)
+            control(.back, icon: "chevron.left", x: 72, y: 180, size: 43)
+            control(.tv, icon: "tv", x: 138, y: 180, size: 43)
+            // Lower controls form two inset vertical columns: media on the left
+            // and volume on the right, with clear margins from the body edge.
+            control(.playPause, icon: "playpause.fill", x: 72, y: 244, size: 38)
+            control(.mute, icon: "speaker.slash.fill", x: 72, y: 293, size: 38)
+            control(.volumeUp, icon: "plus", x: 138, y: 244, size: 34)
+            control(.volumeDown, icon: "minus", x: 138, y: 293, size: 34)
+            // Siri is a dedicated side button on the right edge of Apple's USB-C Siri Remote.
+            control(.siri, icon: "waveform", x: 190, y: 205, size: 34)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Apple Siri Remote")
@@ -56,23 +69,33 @@ struct InteractiveRemoteLayout: View {
             Divider().padding(.vertical, 2)
             Text(language == .chinese ? "按键图例" : "Button legend")
                 .font(.headline)
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(RemoteButton.allCases, id: \.self) { button in
-                        Button { selectedButton = button } label: {
-                            HStack(alignment: .top, spacing: 8) {
-                                Image(systemName: button.icon).frame(width: 16)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(button.title(language)).fontWeight(button == selectedButton ? .semibold : .regular)
-                                    Text(summary(for: button)).font(.caption).foregroundStyle(.secondary)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 8) {
+                        ForEach(RemoteButton.allCases, id: \.self) { button in
+                            Button { selectedButton = button } label: {
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: button.icon).frame(width: 16)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(button.title(language)).fontWeight(button == selectedButton ? .semibold : .regular)
+                                        Text(summary(for: button)).font(.caption).foregroundStyle(.secondary)
+                                    }
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(7)
+                                .background(button == selectedButton ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 7))
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(7)
-                            .background(button == selectedButton ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 7))
+                            .contentShape(Rectangle())
+                            .id(button)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .onChange(of: selectedButton) { _, button in
+                    withAnimation { proxy.scrollTo(button, anchor: .center) }
                 }
             }
         }
@@ -137,7 +160,7 @@ extension RemoteButton {
     var icon: String {
         switch self {
         case .up: "chevron.up"; case .down: "chevron.down"; case .left, .back: "chevron.left"; case .right: "chevron.right"
-        case .center: "circle.fill"; case .tv: "tv"; case .playPause: "playpause.fill"; case .volumeUp: "plus"; case .volumeDown: "minus"; case .siri: "waveform"
+        case .center: "circle.fill"; case .tv: "tv"; case .playPause: "playpause.fill"; case .mute: "speaker.slash.fill"; case .volumeUp: "plus"; case .volumeDown: "minus"; case .siri: "waveform"
         }
     }
 }

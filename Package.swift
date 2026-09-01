@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "SriVibe",
+    name: "Keymote",
     platforms: [.macOS(.v15)],
     products: [
         .library(name: "SriVibeCore", targets: ["SriVibeCore"]),
-        .executable(name: "SriVibe", targets: ["SriVibe"])
+        .executable(name: "Keymote", targets: ["SriVibe"])
     ],
     targets: [
         .target(name: "SriVibeCore"),
