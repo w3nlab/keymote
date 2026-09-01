@@ -51,6 +51,17 @@ final class ActionExecutor {
 
     func stopVolumeAdjustment() { volumeTimer?.invalidate(); volumeTimer = nil }
 
+    func pasteFromClipboard() -> Bool {
+        let source = CGEventSource(stateID: .hidSystemState)
+        guard let down = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false) else { return false }
+        down.flags = [.maskCommand]
+        up.flags = [.maskCommand]
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+        return true
+    }
+
     @discardableResult
     func cancelApplicationSwitcher() -> String {
         guard applicationSwitcherActive else { return "Application switcher is not active" }

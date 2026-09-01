@@ -16,6 +16,7 @@ struct SettingsRootView: View {
         TabView {
             deviceView.tabItem { Label(t("device"), systemImage: "dot.radiowaves.left.and.right") }
             mappingsView.tabItem { Label(t("mappings"), systemImage: "rectangle.3.group") }
+            cloudView.tabItem { Label(model.language == .chinese ? "云端模型" : "Cloud models", systemImage: "cloud") }
             permissionsView.tabItem { Label(t("permissions"), systemImage: "lock.shield") }
             diagnosticsView.tabItem { Label(t("diagnostics"), systemImage: "stethoscope") }
         }
@@ -54,6 +55,30 @@ struct SettingsRootView: View {
                     Text(model.language == .chinese ? "TV 键单击应用：\(model.tvApplicationName)" : "TV button app: \(model.tvApplicationName)")
                     Spacer()
                     Button(model.language == .chinese ? "选择应用…" : "Choose app…") { model.chooseTVApplication() }
+                }
+            }
+            Section(model.language == .chinese ? "语音转写" : "Voice transcription") {
+                Picker(model.language == .chinese ? "输入模式" : "Input mode", selection: Binding(get: { model.voiceInputMode }, set: { model.setVoiceInputMode($0) })) {
+                    Text(model.language == .chinese ? "关闭" : "Off").tag(VoiceInputMode.disabled)
+                    Text(model.language == .chinese ? "Mac 麦克风转写" : "Mac microphone transcription").tag(VoiceInputMode.macMicrophone)
+                    Text(model.language == .chinese ? "遥控器麦克风（尚未实现）" : "Siri Remote microphone (not implemented)")
+                        .tag(VoiceInputMode.remoteMicrophoneExperimental)
+                        .disabled(true)
+                }
+                if model.voiceInputMode == .macMicrophone {
+                    Picker(model.language == .chinese ? "识别来源" : "Recognition source", selection: Binding(get: { model.transcriptionSource }, set: { model.setTranscriptionSource($0) })) {
+                        Text(model.language == .chinese ? "macOS 本地 Speech" : "macOS local Speech").tag(TranscriptionSource.localSpeech)
+                        Text(model.language == .chinese ? "云端模型" : "Cloud model").tag(TranscriptionSource.cloud)
+                    }
+                    if model.transcriptionSource == .cloud {
+                        Picker(model.language == .chinese ? "云端转写提供者" : "Cloud transcription provider", selection: Binding(get: { model.cloudTranscriptionProvider }, set: { model.setCloudTranscriptionProvider($0) })) {
+                            ForEach(CloudProvider.allCases.filter(\.supportsTranscription), id: \.self) { provider in
+                                Text(provider.title).tag(provider)
+                            }
+                        }
+                    }
+                    Text(model.language == .chinese ? "默认 Profile 中，轻按 Siri 键开始/停止录音。文本会复制并尝试粘贴。" : "In the Default profile, tap Siri to start/stop recording. Text is copied and then pasted when permitted.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section(t("hold")) {
@@ -146,12 +171,30 @@ struct SettingsRootView: View {
             Text(t("inputDescription"))
             Label(t(model.accessibilityGranted ? "accessibilityGranted" : "accessibilityRequired"), systemImage: model.accessibilityGranted ? "checkmark.shield" : "exclamationmark.shield")
             Text(t("accessibilityDescription"))
+            Label(model.microphoneGranted ? (model.language == .chinese ? "已授予麦克风权限" : "Microphone permission granted") : (model.language == .chinese ? "需要麦克风权限" : "Microphone permission required"), systemImage: model.microphoneGranted ? "checkmark.shield" : "exclamationmark.shield")
+            Text(model.language == .chinese ? "允许 Keymote 使用 Mac 麦克风录音。" : "Allows Keymote to record from the Mac microphone.")
+            Label(model.speechRecognitionGranted ? (model.language == .chinese ? "已授予语音识别权限" : "Speech Recognition granted") : (model.language == .chinese ? "需要语音识别权限" : "Speech Recognition permission required"), systemImage: model.speechRecognitionGranted ? "checkmark.shield" : "exclamationmark.shield")
+            Text(model.language == .chinese ? "允许使用 macOS 本地 Speech 转写。" : "Allows macOS local Speech transcription.")
             HStack {
                 Button(t("requestPermissions")) { model.refreshPermissions(request: true) }
+                Button(model.language == .chinese ? "请求语音权限" : "Request voice permissions") { model.requestVoicePermissions() }
                 Button(t("refresh")) { model.refreshPermissions() }
             }
             Spacer()
         }.padding()
+    }
+
+    private var cloudView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(model.language == .chinese ? "云端模型配置" : "Cloud model configuration").font(.title3.weight(.semibold))
+                Text(model.language == .chinese ? "凭据会以加密形式保存在 Keymote 配置中；本机 Keychain 保存解密密钥。" : "Credentials are encrypted in Keymote configuration; this Mac's Keychain keeps the decryption key.")
+                    .font(.caption).foregroundStyle(.secondary)
+                ForEach(CloudProvider.allCases, id: \.self) { provider in
+                    CloudProviderCard(model: model, provider: provider)
+                }
+            }.padding()
+        }
     }
 
     private var diagnosticsView: some View {
@@ -177,6 +220,65 @@ struct SettingsRootView: View {
     }
 
     private func t(_ key: String) -> String { L10n.text(key, model.language) }
+}
+
+private extension CloudProvider {
+    var title: String {
+        switch self {
+        case .anthropic: "Claude (Anthropic API)"
+        case .openAI: "OpenAI API"
+        case .openRouter: "OpenRouter"
+        }
+    }
+}
+
+private struct CloudProviderCard: View {
+    @ObservedObject var model: AppModel
+    let provider: CloudProvider
+    @State private var enabled = false
+    @State private var apiKey = ""
+    @State private var transcriptionModel = ""
+    @State private var textModel = ""
+    @State private var loaded = false
+
+    var body: some View {
+        GroupBox(provider.title) {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle(model.language == .chinese ? "启用" : "Enabled", isOn: $enabled)
+                SecureField(model.language == .chinese ? "API Key（留空则保留现有密钥）" : "API Key (leave blank to keep existing key)", text: $apiKey)
+                if provider.supportsTranscription {
+                    TextField(model.language == .chinese ? "转写模型 ID" : "Transcription model ID", text: $transcriptionModel)
+                } else {
+                    Text(model.language == .chinese ? "首版仅支持文本生成；不能直接用于语音转写。" : "Text generation only in v1; not available for voice transcription.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                TextField(model.language == .chinese ? "文本模型 ID" : "Text model ID", text: $textModel)
+                HStack {
+                    Button(model.language == .chinese ? "保存" : "Save") { save() }
+                    Button(model.language == .chinese ? "测试连接" : "Test connection") { save(); model.testCloudProvider(provider) }
+                }
+            }
+            .onAppear { load() }
+        }
+    }
+
+    private func load() {
+        guard !loaded else { return }
+        let config = model.cloudConfiguration(for: provider)
+        enabled = config.isEnabled
+        transcriptionModel = config.transcriptionModel
+        textModel = config.textModel
+        loaded = true
+    }
+
+    private func save() {
+        model.saveCloudConfiguration(
+            CloudProviderConfiguration(isEnabled: enabled, encryptedAPIKey: model.cloudConfiguration(for: provider).encryptedAPIKey, transcriptionModel: transcriptionModel, textModel: textModel),
+            provider: provider,
+            plainAPIKey: apiKey.isEmpty ? nil : apiKey
+        )
+        apiKey = ""
+    }
 }
 
 private struct MappingRow: View {

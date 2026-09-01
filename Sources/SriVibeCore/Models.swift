@@ -16,6 +16,42 @@ public enum AppAppearance: String, CaseIterable, Codable, Hashable, Sendable {
     case system, light, dark
 }
 
+public enum VoiceInputMode: String, CaseIterable, Codable, Hashable, Sendable {
+    case disabled
+    case macMicrophone
+    /// Reserved for the Siri Remote private BLE microphone path. It is not
+    /// selectable by the shipping application yet.
+    case remoteMicrophoneExperimental
+}
+
+public enum TranscriptionSource: String, CaseIterable, Codable, Hashable, Sendable {
+    case localSpeech
+    case cloud
+}
+
+public enum CloudProvider: String, CaseIterable, Codable, Hashable, Sendable {
+    case anthropic
+    case openAI
+    case openRouter
+
+    public var supportsTranscription: Bool { self != .anthropic }
+}
+
+public struct CloudProviderConfiguration: Codable, Hashable, Sendable {
+    public var isEnabled: Bool
+    /// AES-GCM combined representation, encrypted with a per-installation key.
+    public var encryptedAPIKey: String?
+    public var transcriptionModel: String
+    public var textModel: String
+
+    public init(isEnabled: Bool = false, encryptedAPIKey: String? = nil, transcriptionModel: String = "", textModel: String = "") {
+        self.isEnabled = isEnabled
+        self.encryptedAPIKey = encryptedAPIKey
+        self.transcriptionModel = transcriptionModel
+        self.textModel = textModel
+    }
+}
+
 public enum RemoteAction: String, CaseIterable, Codable, Hashable, Sendable {
     case none
     case useDefault
@@ -92,9 +128,13 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
     public var appearance: AppAppearance?
     public var tvApplicationBundleIdentifier: String?
     public var tvApplicationName: String?
+    public var voiceInputMode: VoiceInputMode?
+    public var transcriptionSource: TranscriptionSource?
+    public var cloudTranscriptionProvider: CloudProvider?
+    public var cloudProviders: [CloudProvider: CloudProviderConfiguration]?
     public var mappings: [AppProfile: ProfileMappings]
 
-    public init(holdThresholdMilliseconds: Int = 600, selectedDeviceID: String? = nil, showsInDock: Bool? = true, interfaceLanguage: AppLanguage? = .english, appearance: AppAppearance? = .system, tvApplicationBundleIdentifier: String? = nil, tvApplicationName: String? = nil, mappings: [AppProfile: ProfileMappings] = AppConfiguration.defaultMappings) {
+    public init(holdThresholdMilliseconds: Int = 600, selectedDeviceID: String? = nil, showsInDock: Bool? = true, interfaceLanguage: AppLanguage? = .english, appearance: AppAppearance? = .system, tvApplicationBundleIdentifier: String? = nil, tvApplicationName: String? = nil, voiceInputMode: VoiceInputMode? = .disabled, transcriptionSource: TranscriptionSource? = .localSpeech, cloudTranscriptionProvider: CloudProvider? = .openAI, cloudProviders: [CloudProvider: CloudProviderConfiguration]? = nil, mappings: [AppProfile: ProfileMappings] = AppConfiguration.defaultMappings) {
         self.holdThresholdMilliseconds = min(1_500, max(300, holdThresholdMilliseconds))
         self.selectedDeviceID = selectedDeviceID
         self.showsInDock = showsInDock
@@ -102,6 +142,10 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
         self.appearance = appearance
         self.tvApplicationBundleIdentifier = tvApplicationBundleIdentifier
         self.tvApplicationName = tvApplicationName
+        self.voiceInputMode = voiceInputMode
+        self.transcriptionSource = transcriptionSource
+        self.cloudTranscriptionProvider = cloudTranscriptionProvider
+        self.cloudProviders = cloudProviders
         self.mappings = mappings
     }
 
@@ -170,6 +214,14 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
 
     public func normalized() -> AppConfiguration {
         var copy = self
+        copy.voiceInputMode = copy.voiceInputMode ?? .disabled
+        copy.transcriptionSource = copy.transcriptionSource ?? .localSpeech
+        copy.cloudTranscriptionProvider = copy.cloudTranscriptionProvider ?? .openAI
+        var providers = copy.cloudProviders ?? [:]
+        for provider in CloudProvider.allCases where providers[provider] == nil {
+            providers[provider] = CloudProviderConfiguration()
+        }
+        copy.cloudProviders = providers
         for profile in AppProfile.allCases {
             var mapping = copy.mappings[profile] ?? ProfileMappings()
             let allowed = Set(Self.allowedActions(for: profile))

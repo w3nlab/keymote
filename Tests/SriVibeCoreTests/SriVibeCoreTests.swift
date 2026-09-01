@@ -77,3 +77,13 @@ import Foundation
     #expect(adapter.button(for: .init(page: 0x01, usage: 0x86)) == .back)
     #expect(adapter.button(for: .init(page: 0x0C, usage: 0xFFFF)) == nil)
 }
+
+@Test func voiceConfigurationDefaultsSafelyToLocalAndDisabled() {
+    let configuration = AppConfiguration()
+    #expect(configuration.voiceInputMode == .disabled)
+    #expect(configuration.transcriptionSource == .localSpeech)
+    #expect(configuration.cloudTranscriptionProvider == .openAI)
+    #expect(configuration.normalized().cloudProviders?[.openAI] != nil)
+    #expect(CloudProvider.anthropic.supportsTranscription == false)
+    #expect(CloudProvider.openRouter.supportsTranscription == true)
+}

@@ -1,6 +1,8 @@
 import AppKit
+import AVFoundation
 import Combine
 import os
+import Speech
 import SwiftUI
 import UniformTypeIdentifiers
 import SriVibeCore
@@ -17,12 +19,17 @@ final class AppModel: ObservableObject {
     @Published private(set) var accessibilityGranted = false
     @Published private(set) var statusRevision = 0
     @Published private(set) var diagnostics: [String] = []
+    @Published private(set) var voiceState: VoiceTranscriptionState = .idle
+    @Published private(set) var microphoneGranted = false
+    @Published private(set) var speechRecognitionGranted = false
     var onDockVisibilityChanged: ((Bool) -> Void)?
     var onAppearanceChanged: ((AppAppearance) -> Void)?
 
     private let store = ConfigurationStore()
     private let monitor = HIDRemoteMonitor()
     private let executor = ActionExecutor()
+    private let voiceService = VoiceTranscriptionService()
+    private let credentialStore = InstallationKeyStore()
     private let nativeMediaEventSuppressor = NativeMediaEventSuppressor()
     private let touchpadEventDiagnostics = TouchpadEventDiagnostics()
     private let logger = Logger(subsystem: "app.keymote.remote", category: "runtime")
@@ -44,12 +51,16 @@ final class AppModel: ObservableObject {
         monitor.onDiagnostic = { [weak self] line in Task { @MainActor in self?.recordDiagnostic(line) } }
         monitor.onDeviceDisconnected = { [weak self] in Task { @MainActor in self?.gestureEngine.cancelAll() } }
         touchpadEventDiagnostics.onDiagnostic = { [weak self] line in Task { @MainActor in self?.recordDiagnostic(line) } }
+        voiceService.onDiagnostic = { [weak self] line in self?.recordDiagnostic(line) }
     }
 
     var selectedDevice: RemoteDevice? { devices.first { $0.id == configuration.selectedDeviceID } }
     var showsInDock: Bool { configuration.showsInDock ?? true }
     var language: AppLanguage { configuration.interfaceLanguage ?? .english }
     var appearance: AppAppearance { configuration.appearance ?? .system }
+    var voiceInputMode: VoiceInputMode { configuration.voiceInputMode ?? .disabled }
+    var transcriptionSource: TranscriptionSource { configuration.transcriptionSource ?? .localSpeech }
+    var cloudTranscriptionProvider: CloudProvider { configuration.cloudTranscriptionProvider ?? .openAI }
     var tvApplicationName: String { configuration.tvApplicationName ?? "ChatGPT" }
     var preferredColorScheme: ColorScheme? {
         switch appearance {
@@ -67,6 +78,7 @@ final class AppModel: ObservableObject {
 
     func start() {
         refreshPermissions(request: true)
+        refreshVoicePermissions()
         nativeMediaEventSuppressor.start()
         if touchpadDiagnosticMode { touchpadEventDiagnostics.start() }
         observeFrontmostApplication()
@@ -83,6 +95,7 @@ final class AppModel: ObservableObject {
         touchpadEventDiagnostics.stop()
         executor.cancelApplicationSwitcher()
         executor.stopVolumeAdjustment()
+        voiceService.cancel()
         if let workspaceObserver { NSWorkspace.shared.notificationCenter.removeObserver(workspaceObserver) }
     }
 
@@ -90,6 +103,24 @@ final class AppModel: ObservableObject {
         inputMonitoringGranted = PermissionManager.inputMonitoring(request: request)
         accessibilityGranted = PermissionManager.accessibility(request: request)
         statusRevision += 1
+    }
+
+    func refreshVoicePermissions() {
+        microphoneGranted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        speechRecognitionGranted = SFSpeechRecognizer.authorizationStatus() == .authorized
+        statusRevision += 1
+    }
+
+    func requestVoicePermissions() {
+        Task {
+            _ = await AVCaptureDevice.requestAccess(for: .audio)
+            if SFSpeechRecognizer.authorizationStatus() == .notDetermined {
+                _ = await withCheckedContinuation { continuation in
+                    SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
+                }
+            }
+            refreshVoicePermissions()
+        }
     }
 
     func selectDevice(_ id: String?) {
@@ -142,6 +173,54 @@ final class AppModel: ObservableObject {
         persist()
     }
 
+    func setVoiceInputMode(_ mode: VoiceInputMode) {
+        guard mode != .remoteMicrophoneExperimental else {
+            lastMessage = language == .chinese ? "遥控器麦克风方案尚未实现" : "Siri Remote microphone is not implemented"
+            return
+        }
+        if voiceState != .idle { voiceService.cancel(); voiceState = .idle }
+        configuration.voiceInputMode = mode
+        persist()
+    }
+
+    func setTranscriptionSource(_ source: TranscriptionSource) {
+        configuration.transcriptionSource = source
+        persist()
+    }
+
+    func setCloudTranscriptionProvider(_ provider: CloudProvider) {
+        guard provider.supportsTranscription else { return }
+        configuration.cloudTranscriptionProvider = provider
+        persist()
+    }
+
+    func cloudConfiguration(for provider: CloudProvider) -> CloudProviderConfiguration {
+        configuration.cloudProviders?[provider] ?? CloudProviderConfiguration()
+    }
+
+    func saveCloudConfiguration(_ value: CloudProviderConfiguration, provider: CloudProvider, plainAPIKey: String?) {
+        var copy = value
+        if let plainAPIKey, !plainAPIKey.isEmpty {
+            do { copy.encryptedAPIKey = try credentialStore.encrypt(plainAPIKey) }
+            catch { lastMessage = error.localizedDescription; return }
+        }
+        var providers = configuration.cloudProviders ?? [:]
+        providers[provider] = copy
+        configuration.cloudProviders = providers
+        persist()
+    }
+
+    func testCloudProvider(_ provider: CloudProvider) {
+        let configuration = cloudConfiguration(for: provider)
+        lastMessage = language == .chinese ? "正在测试 \(provider.rawValue)…" : "Testing \(provider.rawValue)…"
+        Task {
+            do {
+                _ = try await CloudModelGateway().generateText("Reply only with OK.", provider: provider, configuration: configuration)
+                lastMessage = language == .chinese ? "\(provider.rawValue) 连接成功" : "\(provider.rawValue) connection succeeded"
+            } catch { lastMessage = error.localizedDescription }
+        }
+    }
+
     func action(for button: RemoteButton, gesture: ButtonGesture, profile: AppProfile) -> RemoteAction {
         let action = configuredAction(for: button, gesture: gesture, profile: profile)
         guard action == .useDefault, profile != .default else { return action }
@@ -180,6 +259,11 @@ final class AppModel: ObservableObject {
         let next = AppProfile.forBundleIdentifier(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
         guard currentProfile != next else { return }
         currentProfile = next
+        if next != .default, voiceState != .idle {
+            voiceService.cancel()
+            voiceState = .idle
+            lastMessage = language == .chinese ? "因切换应用已取消录音" : "Recording cancelled because the active profile changed"
+        }
         statusRevision += 1
     }
 
@@ -207,6 +291,10 @@ final class AppModel: ObservableObject {
         guard !outputs.isEmpty else { return }
         updateProfile()
         for case let .perform(button, gesture) in outputs {
+            if button == .siri, gesture == .tap, currentProfile == .default, voiceInputMode == .macMicrophone {
+                toggleVoiceTranscription()
+                continue
+            }
             if let switcherResult = performApplicationSwitcherAction(for: button) {
                 lastMessage = switcherResult
                 recordDiagnostic("Application switcher: \(switcherResult)")
@@ -227,6 +315,67 @@ final class AppModel: ObservableObject {
                 let result = executor.execute(action, for: currentProfile, tvApplicationBundleIdentifier: configuration.tvApplicationBundleIdentifier)
                 lastMessage = result
                 recordDiagnostic("Action result: \(result)")
+            }
+        }
+    }
+
+    private func toggleVoiceTranscription() {
+        recordDiagnostic("Voice: Siri tap received state=\(voiceState) mode=\(voiceInputMode.rawValue) profile=\(currentProfile.rawValue)")
+        if voiceState == .idle {
+            let source = transcriptionSource
+            if source == .cloud {
+                let provider = cloudTranscriptionProvider
+                guard provider.supportsTranscription else {
+                    lastMessage = language == .chinese ? "Claude 当前不支持云端语音转写" : "Claude does not support cloud transcription"
+                    return
+                }
+                let cloud = cloudConfiguration(for: provider)
+                guard cloud.isEnabled, cloud.encryptedAPIKey != nil, !cloud.transcriptionModel.isEmpty else {
+                    lastMessage = language == .chinese ? "请先配置云端转写提供者和模型" : "Configure a cloud transcription provider and model first"
+                    return
+                }
+            }
+            // Reserve the toggle immediately so repeated HID events cannot
+            // launch multiple concurrent audio/Speech initialization tasks.
+            voiceState = .transcribing
+            lastMessage = language == .chinese ? "正在启动录音…" : "Starting recording…"
+            Task {
+                do {
+                    try await voiceService.start(source: source)
+                    voiceState = .recording
+                    lastMessage = language == .chinese ? "正在录音，再次轻按 Siri 键结束" : "Recording — tap Siri again to stop"
+                } catch {
+                    voiceState = .idle
+                    lastMessage = error.localizedDescription
+                    recordDiagnostic("Voice: start failed: \(error.localizedDescription)")
+                    refreshVoicePermissions()
+                }
+            }
+        } else if voiceState == .recording {
+            voiceState = .transcribing
+            lastMessage = language == .chinese ? "正在转写…" : "Transcribing…"
+            let source = transcriptionSource
+            let provider = cloudTranscriptionProvider
+            let cloud = cloudConfiguration(for: provider)
+            let languageCode = Locale.autoupdatingCurrent.language.languageCode?.identifier
+            Task {
+                do {
+                    let text = try await voiceService.stop(source: source, cloudProvider: provider, cloudConfiguration: cloud, languageCode: languageCode)
+                    recordDiagnostic("Voice: transcription returned length=\(text.count)")
+                    NSPasteboard.general.clearContents()
+                    let copied = NSPasteboard.general.setString(text, forType: .string)
+                    recordDiagnostic("Voice: clipboard write=\(copied)")
+                    let pasted = accessibilityGranted ? executor.pasteFromClipboard() : false
+                    recordDiagnostic("Voice: paste attempted=\(accessibilityGranted) result=\(pasted)")
+                    lastMessage = accessibilityGranted
+                        ? (language == .chinese ? "已转写并粘贴" : "Transcribed and pasted")
+                        : (language == .chinese ? "已转写并复制到剪贴板（需要辅助功能权限以自动粘贴）" : "Transcribed and copied; Accessibility is required to paste")
+                    recordDiagnostic("Voice transcription completed using \(source.rawValue)")
+                } catch {
+                    lastMessage = error.localizedDescription
+                    recordDiagnostic("Voice transcription failed: \(error.localizedDescription)")
+                }
+                voiceState = .idle
             }
         }
     }

@@ -18,6 +18,9 @@ Remote (A2854) to keyboard and system actions.
   to cancel.
 - Chinese and English interfaces, light/dark/system appearance options, and a
   Dock visibility setting.
+- Optional Siri-button voice transcription using the Mac microphone. Choose
+  on-device macOS Speech by default, or configure OpenAI/OpenRouter cloud
+  transcription; cloud credentials are encrypted in local configuration.
 
 ## Run and build
 

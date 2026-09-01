@@ -22,5 +22,9 @@
     <string>26.6</string>
     <key>LSUIElement</key>
 	<false/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Keymote uses your Mac microphone when you start voice transcription with the Siri Remote button.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Keymote uses Speech Recognition to transcribe recordings made with the Siri Remote button.</string>
 </dict>
 </plist>
