@@ -31,6 +31,15 @@ Keymote requests Input Monitoring permission to receive paired Siri Remote HID
 events and Accessibility permission to send configured keyboard actions. Pair
 the A2854 in System Settings before opening Keymote.
 
+### Capture touchpad HID data
+
+Run `swift run Keymote --diagnose-touchpad`, then open **Diagnostics**, perform
+each touchpad gesture, and copy the trace. This mode exclusively opens the
+remote's matching HID interfaces and records the digitizer (usage page `0x0D`)
+interface's raw input reports, including their report ID and bytes. It does not
+inject configured actions. The trace is for mapping a physical remote before
+adding a gesture handler or event suppression rule.
+
 `build-app.sh` prefers the first local Apple Development identity so macOS
 privacy grants stay stable across local rebuilds. Set
 `KEYMOTE_SIGNING_IDENTITY` to choose one explicitly. The legacy

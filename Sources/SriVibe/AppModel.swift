@@ -24,8 +24,11 @@ final class AppModel: ObservableObject {
     private let monitor = HIDRemoteMonitor()
     private let executor = ActionExecutor()
     private let nativeMediaEventSuppressor = NativeMediaEventSuppressor()
+    private let touchpadEventDiagnostics = TouchpadEventDiagnostics()
     private let logger = Logger(subsystem: "app.keymote.remote", category: "runtime")
     private let diagnosticInputMode = CommandLine.arguments.contains("--diagnose-input")
+        || CommandLine.arguments.contains("--diagnose-touchpad")
+    private let touchpadDiagnosticMode = CommandLine.arguments.contains("--diagnose-touchpad")
     private var gestureEngine: ButtonGestureEngine
     private var holdTimer: Timer?
     private var workspaceObserver: NSObjectProtocol?
@@ -34,11 +37,13 @@ final class AppModel: ObservableObject {
         let loaded = ConfigurationStore().load()
         configuration = loaded
         gestureEngine = ButtonGestureEngine(holdThresholdMilliseconds: loaded.holdThresholdMilliseconds)
+        monitor.captureRawInput = touchpadDiagnosticMode
         monitor.onDevicesChanged = { [weak self] devices in Task { @MainActor in self?.setDevices(devices) } }
         monitor.onButtonEvent = { [weak self] button, isPressed in Task { @MainActor in self?.handle(button, isPressed: isPressed) } }
         monitor.onStatus = { [weak self] message in Task { @MainActor in self?.lastMessage = message } }
         monitor.onDiagnostic = { [weak self] line in Task { @MainActor in self?.recordDiagnostic(line) } }
         monitor.onDeviceDisconnected = { [weak self] in Task { @MainActor in self?.gestureEngine.cancelAll() } }
+        touchpadEventDiagnostics.onDiagnostic = { [weak self] line in Task { @MainActor in self?.recordDiagnostic(line) } }
     }
 
     var selectedDevice: RemoteDevice? { devices.first { $0.id == configuration.selectedDeviceID } }
@@ -63,6 +68,7 @@ final class AppModel: ObservableObject {
     func start() {
         refreshPermissions(request: true)
         nativeMediaEventSuppressor.start()
+        if touchpadDiagnosticMode { touchpadEventDiagnostics.start() }
         observeFrontmostApplication()
         monitor.start(selectedID: configuration.selectedDeviceID)
         holdTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
@@ -74,6 +80,7 @@ final class AppModel: ObservableObject {
         holdTimer?.invalidate()
         monitor.stop()
         nativeMediaEventSuppressor.stop()
+        touchpadEventDiagnostics.stop()
         executor.cancelApplicationSwitcher()
         executor.stopVolumeAdjustment()
         if let workspaceObserver { NSWorkspace.shared.notificationCenter.removeObserver(workspaceObserver) }

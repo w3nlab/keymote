@@ -97,29 +97,46 @@ struct SettingsRootView: View {
 
     @ViewBuilder
     private var mappingContent: some View {
-        if mappingEditor == .layout {
-            if RemoteLayoutRegistry.supports(model.selectedDevice?.layoutID) || model.selectedDevice == nil {
-                ScrollView([.horizontal, .vertical]) {
-                    InteractiveRemoteLayout(model: model, profile: selectedProfile, selectedButton: $selectedButton)
-                }
-            } else {
-                ContentUnavailableView(
-                    model.language == .chinese ? "该设备暂无互动布局" : "No interactive layout for this device",
-                    systemImage: "rectangle.dashed",
-                    description: Text(model.language == .chinese ? "请切换到表单列表以配置按键。" : "Use the form list to configure this device.")
-                )
+        // Keep both editor hierarchies alive. Switching a conditional view here
+        // used to tear down and recreate all of the native Picker controls,
+        // which is noticeably expensive on macOS.
+        ZStack(alignment: .topLeading) {
+            layoutEditor
+                .opacity(mappingEditor == .layout ? 1 : 0)
+                .allowsHitTesting(mappingEditor == .layout)
+                .accessibilityHidden(mappingEditor != .layout)
+            listEditor
+                .opacity(mappingEditor == .list ? 1 : 0)
+                .allowsHitTesting(mappingEditor == .list)
+                .accessibilityHidden(mappingEditor != .list)
+        }
+    }
+
+    @ViewBuilder
+    private var layoutEditor: some View {
+        if RemoteLayoutRegistry.supports(model.selectedDevice?.layoutID) || model.selectedDevice == nil {
+            ScrollView([.horizontal, .vertical]) {
+                InteractiveRemoteLayout(model: model, profile: selectedProfile, selectedButton: $selectedButton)
             }
         } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(L10n.format("editing", model.language, selectedProfile.title(model.language))).font(.headline)
-                    Text(t("automaticMappings")).foregroundStyle(.secondary)
-                    Text(L10n.format("currentlyActive", model.language, model.currentProfile.title(model.language))).foregroundStyle(.secondary)
-                    ForEach(RemoteButton.allCases, id: \.self) { button in
-                        MappingRow(model: model, profile: selectedProfile, button: button)
-                    }
-                }.padding()
-            }
+            ContentUnavailableView(
+                model.language == .chinese ? "该设备暂无互动布局" : "No interactive layout for this device",
+                systemImage: "rectangle.dashed",
+                description: Text(model.language == .chinese ? "请切换到表单列表以配置按键。" : "Use the form list to configure this device.")
+            )
+        }
+    }
+
+    private var listEditor: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(L10n.format("editing", model.language, selectedProfile.title(model.language))).font(.headline)
+                Text(t("automaticMappings")).foregroundStyle(.secondary)
+                Text(L10n.format("currentlyActive", model.language, model.currentProfile.title(model.language))).foregroundStyle(.secondary)
+                ForEach(RemoteButton.allCases, id: \.self) { button in
+                    MappingRow(model: model, profile: selectedProfile, button: button)
+                }
+            }.padding()
         }
     }
 
