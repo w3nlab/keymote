@@ -34,6 +34,7 @@ import Foundation
     #expect(AppProfile.forBundleIdentifier("com.microsoft.edgemac") == .edge)
     #expect(AppProfile.forBundleIdentifier("unknown") == .default)
     let config = AppConfiguration()
+    #expect(config.voiceTranscriptionTiming == .afterRecording)
     #expect(config.mappings[.terminal]?.action(for: .center, gesture: .tap) == .confirm)
     #expect(config.mappings[.default]?.action(for: .back, gesture: .hold) == .quitApplication)
     #expect(config.mappings[.chatGPT]?.action(for: .playPause, gesture: .tap) == RemoteAction.none)

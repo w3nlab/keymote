@@ -51,6 +51,11 @@ public enum SpeechRecognitionLanguage: String, CaseIterable, Codable, Hashable, 
     }
 }
 
+public enum VoiceTranscriptionTiming: String, CaseIterable, Codable, Hashable, Sendable {
+    case afterRecording
+    case realtime
+}
+
 public enum CloudProvider: String, CaseIterable, Codable, Hashable, Sendable {
     case anthropic
     case openAI
@@ -154,11 +159,12 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
     public var voiceInputMode: VoiceInputMode?
     public var transcriptionSource: TranscriptionSource?
     public var speechRecognitionLanguage: SpeechRecognitionLanguage?
+    public var voiceTranscriptionTiming: VoiceTranscriptionTiming?
     public var cloudTranscriptionProvider: CloudProvider?
     public var cloudProviders: [CloudProvider: CloudProviderConfiguration]?
     public var mappings: [AppProfile: ProfileMappings]
 
-    public init(holdThresholdMilliseconds: Int = 600, selectedDeviceID: String? = nil, showsInDock: Bool? = true, interfaceLanguage: AppLanguage? = .english, appearance: AppAppearance? = .system, tvApplicationBundleIdentifier: String? = nil, tvApplicationName: String? = nil, voiceInputMode: VoiceInputMode? = .disabled, transcriptionSource: TranscriptionSource? = .localSpeech, speechRecognitionLanguage: SpeechRecognitionLanguage? = .automatic, cloudTranscriptionProvider: CloudProvider? = .openAI, cloudProviders: [CloudProvider: CloudProviderConfiguration]? = nil, mappings: [AppProfile: ProfileMappings] = AppConfiguration.defaultMappings) {
+    public init(holdThresholdMilliseconds: Int = 600, selectedDeviceID: String? = nil, showsInDock: Bool? = true, interfaceLanguage: AppLanguage? = .english, appearance: AppAppearance? = .system, tvApplicationBundleIdentifier: String? = nil, tvApplicationName: String? = nil, voiceInputMode: VoiceInputMode? = .disabled, transcriptionSource: TranscriptionSource? = .localSpeech, speechRecognitionLanguage: SpeechRecognitionLanguage? = .automatic, voiceTranscriptionTiming: VoiceTranscriptionTiming? = .afterRecording, cloudTranscriptionProvider: CloudProvider? = .openAI, cloudProviders: [CloudProvider: CloudProviderConfiguration]? = nil, mappings: [AppProfile: ProfileMappings] = AppConfiguration.defaultMappings) {
         self.holdThresholdMilliseconds = min(1_500, max(300, holdThresholdMilliseconds))
         self.selectedDeviceID = selectedDeviceID
         self.showsInDock = showsInDock
@@ -169,6 +175,7 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
         self.voiceInputMode = voiceInputMode
         self.transcriptionSource = transcriptionSource
         self.speechRecognitionLanguage = speechRecognitionLanguage
+        self.voiceTranscriptionTiming = voiceTranscriptionTiming
         self.cloudTranscriptionProvider = cloudTranscriptionProvider
         self.cloudProviders = cloudProviders
         self.mappings = mappings
@@ -242,6 +249,7 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
         copy.voiceInputMode = copy.voiceInputMode ?? .disabled
         copy.transcriptionSource = copy.transcriptionSource ?? .localSpeech
         copy.speechRecognitionLanguage = copy.speechRecognitionLanguage ?? .automatic
+        copy.voiceTranscriptionTiming = copy.voiceTranscriptionTiming ?? .afterRecording
         copy.cloudTranscriptionProvider = copy.cloudTranscriptionProvider ?? .openAI
         var providers = copy.cloudProviders ?? [:]
         for provider in CloudProvider.allCases where providers[provider] == nil {

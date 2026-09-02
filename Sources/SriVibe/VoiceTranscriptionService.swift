@@ -105,6 +105,7 @@ private final class SpeechResultWaiter: @unchecked Sendable {
 @MainActor
 final class VoiceTranscriptionService {
     var onDiagnostic: ((String) -> Void)?
+    var onPartialTranscript: ((String) -> Void)?
     private let engine = AVAudioEngine()
     private let gateway: CloudModelGateway
     private var speechRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -122,7 +123,11 @@ final class VoiceTranscriptionService {
 
     init(gateway: CloudModelGateway = CloudModelGateway()) { self.gateway = gateway }
 
-    func start(source: TranscriptionSource, localeIdentifier: String? = nil) async throws {
+    func start(
+        source: TranscriptionSource,
+        localeIdentifier: String? = nil,
+        timing: VoiceTranscriptionTiming = .afterRecording
+    ) async throws {
         guard state == .idle else { return }
         onDiagnostic?("Voice: start requested source=\(source.rawValue)")
         let microphone = AVCaptureDevice.authorizationStatus(for: .audio)
@@ -132,9 +137,13 @@ final class VoiceTranscriptionService {
                 let allowed = await AVCaptureDevice.requestAccess(for: .audio)
                 guard allowed else { throw VoiceTranscriptionError.microphoneDenied }
             } else { throw VoiceTranscriptionError.microphoneDenied }
-            return try await start(source: source)
+            return try await start(source: source, localeIdentifier: localeIdentifier, timing: timing)
         }
-        if source == .localSpeech { try await prepareLocalRecognition(localeIdentifier: localeIdentifier) }
+        if source == .localSpeech {
+            try await prepareLocalRecognition(localeIdentifier: localeIdentifier, timing: timing)
+        } else if timing == .realtime {
+            onDiagnostic?("Voice: cloud transcription is submitted after recording; realtime mode applies to local Speech only")
+        }
 
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
@@ -204,7 +213,7 @@ final class VoiceTranscriptionService {
         cleanup()
     }
 
-    private func prepareLocalRecognition(localeIdentifier: String?) async throws {
+    private func prepareLocalRecognition(localeIdentifier: String?, timing: VoiceTranscriptionTiming) async throws {
         let status = SFSpeechRecognizer.authorizationStatus()
         onDiagnostic?("Voice: Speech authorization=\(status.rawValue)")
         if status == .notDetermined {
@@ -231,7 +240,7 @@ final class VoiceTranscriptionService {
         onDiagnostic?("Voice: local Speech recognizer ready locale=\(locale.identifier)")
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.requiresOnDeviceRecognition = true
-        request.shouldReportPartialResults = true
+        request.shouldReportPartialResults = timing == .realtime
         localText.set("")
         recognitionError.set("")
         recognitionCallbackCount.reset()
@@ -241,12 +250,14 @@ final class VoiceTranscriptionService {
         speechResultWaiter = waiter
         let callbackCount = recognitionCallbackCount
         let callbackError = recognitionError
+        let partialReporter = onPartialTranscript
         recognitionTask = recognizer.recognitionTask(with: request) { result, error in
             callbackCount.increment()
             if let error { callbackError.set(error.localizedDescription) }
             if let result {
                 let text = result.bestTranscription.formattedString
                 textStore.set(text)
+                if timing == .realtime, !text.isEmpty { partialReporter?(text) }
                 if result.isFinal { waiter.finish(text) }
             }
         }

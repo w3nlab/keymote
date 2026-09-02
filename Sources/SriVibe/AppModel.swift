@@ -20,6 +20,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var statusRevision = 0
     @Published private(set) var diagnostics: [String] = []
     @Published private(set) var voiceState: VoiceTranscriptionState = .idle
+    @Published private(set) var liveTranscript = ""
     @Published private(set) var microphoneGranted = false
     @Published private(set) var speechRecognitionGranted = false
     var onDockVisibilityChanged: ((Bool) -> Void)?
@@ -39,6 +40,8 @@ final class AppModel: ObservableObject {
     private var gestureEngine: ButtonGestureEngine
     private var holdTimer: Timer?
     private var workspaceObserver: NSObjectProtocol?
+    private var injectedLiveTranscript = ""
+    private var liveSpeechSegment = ""
 
     init() {
         let loaded = ConfigurationStore().load()
@@ -52,6 +55,9 @@ final class AppModel: ObservableObject {
         monitor.onDeviceDisconnected = { [weak self] in Task { @MainActor in self?.gestureEngine.cancelAll() } }
         touchpadEventDiagnostics.onDiagnostic = { [weak self] line in Task { @MainActor in self?.recordDiagnostic(line) } }
         voiceService.onDiagnostic = { [weak self] line in self?.recordDiagnostic(line) }
+        voiceService.onPartialTranscript = { [weak self] text in
+            Task { @MainActor in self?.receivePartialTranscript(text) }
+        }
     }
 
     var selectedDevice: RemoteDevice? { devices.first { $0.id == configuration.selectedDeviceID } }
@@ -61,6 +67,7 @@ final class AppModel: ObservableObject {
     var voiceInputMode: VoiceInputMode { configuration.voiceInputMode ?? .disabled }
     var transcriptionSource: TranscriptionSource { configuration.transcriptionSource ?? .localSpeech }
     var speechRecognitionLanguage: SpeechRecognitionLanguage { configuration.speechRecognitionLanguage ?? .automatic }
+    var voiceTranscriptionTiming: VoiceTranscriptionTiming { configuration.voiceTranscriptionTiming ?? .afterRecording }
     var cloudTranscriptionProvider: CloudProvider { configuration.cloudTranscriptionProvider ?? .openAI }
     var tvApplicationName: String { configuration.tvApplicationName ?? "ChatGPT" }
     var preferredColorScheme: ColorScheme? {
@@ -191,6 +198,11 @@ final class AppModel: ObservableObject {
 
     func setSpeechRecognitionLanguage(_ language: SpeechRecognitionLanguage) {
         configuration.speechRecognitionLanguage = language
+        persist()
+    }
+
+    func setVoiceTranscriptionTiming(_ timing: VoiceTranscriptionTiming) {
+        configuration.voiceTranscriptionTiming = timing
         persist()
     }
 
@@ -334,6 +346,7 @@ final class AppModel: ObservableObject {
         if voiceState == .idle {
             let source = transcriptionSource
             let recognitionLanguage = speechRecognitionLanguage
+            let timing = voiceTranscriptionTiming
             if source == .cloud {
                 let provider = cloudTranscriptionProvider
                 guard provider.supportsTranscription else {
@@ -349,10 +362,13 @@ final class AppModel: ObservableObject {
             // Reserve the toggle immediately so repeated HID events cannot
             // launch multiple concurrent audio/Speech initialization tasks.
             voiceState = .transcribing
+            liveTranscript = ""
+            injectedLiveTranscript = ""
+            liveSpeechSegment = ""
             lastMessage = language == .chinese ? "正在启动录音…" : "Starting recording…"
             Task {
                 do {
-                    try await voiceService.start(source: source, localeIdentifier: recognitionLanguage.localeIdentifier)
+                    try await voiceService.start(source: source, localeIdentifier: recognitionLanguage.localeIdentifier, timing: timing)
                     voiceState = .recording
                     lastMessage = language == .chinese ? "正在录音，再次轻按 Siri 键结束" : "Recording — tap Siri again to stop"
                 } catch {
@@ -373,10 +389,31 @@ final class AppModel: ObservableObject {
                 do {
                     let text = try await voiceService.stop(source: source, cloudProvider: provider, cloudConfiguration: cloud, languageCode: languageCode)
                     recordDiagnostic("Voice: transcription returned length=\(text.count)")
-                    NSPasteboard.general.clearContents()
-                    let copied = NSPasteboard.general.setString(text, forType: .string)
+                    let copied: Bool
+                    let pasted: Bool
+                    if accessibilityGranted {
+                        let hasLiveText = voiceTranscriptionTiming == .realtime && !injectedLiveTranscript.isEmpty
+                        if hasLiveText, text == injectedLiveTranscript {
+                            NSPasteboard.general.clearContents()
+                            copied = NSPasteboard.general.setString(text, forType: .string)
+                            pasted = copied // The final text is already at the cursor.
+                        } else if hasLiveText {
+                            pasted = executor.replaceTransientTextAtCursor(previous: injectedLiveTranscript, with: text)
+                            copied = pasted
+                        } else {
+                            NSPasteboard.general.clearContents()
+                            copied = NSPasteboard.general.setString(text, forType: .string)
+                            pasted = copied && executor.pasteFromClipboard()
+                        }
+                        if pasted { injectedLiveTranscript = text }
+                    } else {
+                        NSPasteboard.general.clearContents()
+                        copied = NSPasteboard.general.setString(text, forType: .string)
+                        pasted = false
+                    }
+                    liveTranscript = text
+                    liveSpeechSegment = ""
                     recordDiagnostic("Voice: clipboard write=\(copied)")
-                    let pasted = accessibilityGranted ? executor.pasteFromClipboard() : false
                     recordDiagnostic("Voice: paste attempted=\(accessibilityGranted) result=\(pasted)")
                     lastMessage = accessibilityGranted
                         ? (language == .chinese ? "已转写并粘贴" : "Transcribed and pasted")
@@ -390,6 +427,55 @@ final class AppModel: ObservableObject {
             }
         }
     }
+
+    private func receivePartialTranscript(_ text: String) {
+        guard voiceTranscriptionTiming == .realtime, voiceState == .recording else { return }
+        liveTranscript = text
+        guard accessibilityGranted else { return }
+        applyLiveSpeechCandidate(text)
+    }
+
+    /// Speech may restart its partial hypothesis after a short pause. Keep the
+    /// text that was already committed to the target app and only revise the
+    /// current trailing hypothesis.
+    private func applyLiveSpeechCandidate(_ candidate: String) {
+        guard !candidate.isEmpty else { return }
+        guard candidate != liveSpeechSegment else { return }
+
+        if liveSpeechSegment.isEmpty {
+            replaceLiveSuffix(previous: "", with: candidate)
+            return
+        }
+
+        let prefixLength = commonPrefixLength(liveSpeechSegment, candidate)
+        // A meaningful shared prefix means Speech is revising the same phrase.
+        // Otherwise it has begun a new utterance after a pause: append it.
+        if prefixLength >= 2 {
+            let previousSuffix = String(liveSpeechSegment.dropFirst(prefixLength))
+            let replacementSuffix = String(candidate.dropFirst(prefixLength))
+            replaceLiveSuffix(previous: previousSuffix, with: replacementSuffix, replacingSegmentWith: candidate)
+        } else {
+            let separator = injectedLiveTranscript.isEmpty || injectedLiveTranscript.hasSuffix(" ") || injectedLiveTranscript.hasSuffix("\n") ? "" : " "
+            replaceLiveSuffix(previous: "", with: separator + candidate, replacingSegmentWith: candidate)
+        }
+    }
+
+    private func replaceLiveSuffix(previous: String, with replacement: String, replacingSegmentWith segment: String? = nil) {
+        guard executor.replaceTransientTextAtCursor(previous: previous, with: replacement) else {
+            recordDiagnostic("Voice: live text update failed")
+            return
+        }
+        if !previous.isEmpty { injectedLiveTranscript.removeLast(previous.count) }
+        injectedLiveTranscript += replacement
+        liveSpeechSegment = segment ?? replacement
+        liveTranscript = injectedLiveTranscript
+        recordDiagnostic("Voice: live text updated length=\(injectedLiveTranscript.count)")
+    }
+
+    private func commonPrefixLength(_ lhs: String, _ rhs: String) -> Int {
+        zip(lhs, rhs).prefix { $0 == $1 }.count
+    }
+
 
     private func performApplicationSwitcherAction(for button: RemoteButton) -> String? {
         guard executor.isApplicationSwitcherActive else { return nil }

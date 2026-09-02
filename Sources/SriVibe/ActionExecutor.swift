@@ -64,6 +64,20 @@ final class ActionExecutor {
         return true
     }
 
+    /// Replaces text previously inserted by Keymote at the active insertion
+    /// point. Speech partial results are frequently revised, so appending only
+    /// the new suffix is not reliable.
+    func replaceTransientTextAtCursor(previous: String, with replacement: String) -> Bool {
+        guard previous != replacement else { return true }
+        for _ in previous {
+            key(51) // macOS Delete / Backspace
+        }
+        guard !replacement.isEmpty else { return true }
+        NSPasteboard.general.clearContents()
+        guard NSPasteboard.general.setString(replacement, forType: .string) else { return false }
+        return pasteFromClipboard()
+    }
+
     @discardableResult
     func cancelApplicationSwitcher() -> String {
         guard applicationSwitcherActive else { return "Application switcher is not active" }

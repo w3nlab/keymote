@@ -75,11 +75,25 @@ struct SettingsRootView: View {
                         Text("English (United States)").tag(SpeechRecognitionLanguage.englishUS)
                         Text("中文（简体，中国大陆）").tag(SpeechRecognitionLanguage.chineseSimplified)
                     }
+                    Picker(model.language == .chinese ? "转写时机" : "Transcription timing", selection: Binding(get: { model.voiceTranscriptionTiming }, set: { model.setVoiceTranscriptionTiming($0) })) {
+                        Text(model.language == .chinese ? "录音结束后" : "After recording").tag(VoiceTranscriptionTiming.afterRecording)
+                        Text(model.language == .chinese ? "实时转写" : "Realtime").tag(VoiceTranscriptionTiming.realtime)
+                    }
                     if model.transcriptionSource == .cloud {
                         Picker(model.language == .chinese ? "云端转写提供者" : "Cloud transcription provider", selection: Binding(get: { model.cloudTranscriptionProvider }, set: { model.setCloudTranscriptionProvider($0) })) {
                             ForEach(CloudProvider.allCases.filter(\.supportsTranscription), id: \.self) { provider in
                                 Text(provider.title).tag(provider)
                             }
+                        }
+                    }
+                    if model.transcriptionSource == .cloud && model.voiceTranscriptionTiming == .realtime {
+                        Text(model.language == .chinese ? "云端模式会在停止录音后统一提交；实时转写目前仅适用于 macOS 本地 Speech。" : "Cloud audio is submitted after recording; realtime transcription currently applies only to macOS local Speech.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if model.voiceTranscriptionTiming == .realtime, !model.liveTranscript.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(model.language == .chinese ? "实时转写" : "Live transcription").font(.caption).foregroundStyle(.secondary)
+                            Text(model.liveTranscript).textSelection(.enabled)
                         }
                     }
                     Text(model.language == .chinese ? "将 Siri 轻按设为“语音转写”；非默认 Profile 可设为“默认”以继承默认 Profile。" : "Set Siri tap to Voice transcription; non-default profiles can use Default to inherit the Default profile.")
