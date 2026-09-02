@@ -118,10 +118,12 @@ struct InteractiveRemoteLayout: View {
 
     private func summary(for button: RemoteButton) -> String {
         let tap = model.configuredAction(for: button, gesture: .tap, profile: profile)
+        let doubleTap = model.configuredAction(for: button, gesture: .doubleTap, profile: profile)
         let hold = model.configuredAction(for: button, gesture: .hold, profile: profile)
         let tapLabel = actionTitle(tap)
+        let doubleTapLabel = actionTitle(doubleTap)
         let holdLabel = actionTitle(hold)
-        return language == .chinese ? "轻按：\(tapLabel) · 长按：\(holdLabel)" : "Tap: \(tapLabel) · Hold: \(holdLabel)"
+        return language == .chinese ? "轻按：\(tapLabel) · 双击：\(doubleTapLabel) · 长按：\(holdLabel)" : "Tap: \(tapLabel) · Double tap: \(doubleTapLabel) · Hold: \(holdLabel)"
     }
 
     private func actionTitle(_ action: RemoteAction) -> String {
@@ -138,6 +140,7 @@ struct MappingPickerRow: View {
     var body: some View {
         HStack {
             picker(language == .chinese ? "轻按" : "Tap", .tap)
+            picker(language == .chinese ? "双击" : "Double tap", .doubleTap)
             picker(language == .chinese ? "长按" : "Hold", .hold)
         }
     }

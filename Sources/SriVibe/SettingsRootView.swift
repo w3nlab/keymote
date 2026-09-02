@@ -110,6 +110,15 @@ struct SettingsRootView: View {
                     in: 300...1_500,
                     step: 50
                 )
+                Stepper(
+                    L10n.format("doubleTapInterval", model.language, model.configuration.doubleTapIntervalMilliseconds ?? 300),
+                    value: Binding(
+                        get: { model.configuration.doubleTapIntervalMilliseconds ?? 300 },
+                        set: { model.updateDoubleTapInterval($0) }
+                    ),
+                    in: 150...800,
+                    step: 25
+                )
             }
             Section(t("status")) { Text(model.statusText).foregroundStyle(.secondary) }
         }
@@ -310,6 +319,7 @@ private struct MappingRow: View {
             Text(button.title(model.language)).font(.headline)
             HStack {
                 actionPicker(L10n.text("tap", model.language), gesture: .tap)
+                actionPicker(L10n.text("doubleTap", model.language), gesture: .doubleTap)
                 actionPicker(L10n.text("holdAction", model.language), gesture: .hold)
             }
         }

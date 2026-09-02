@@ -5,7 +5,7 @@ public enum RemoteButton: String, CaseIterable, Codable, Hashable, Sendable {
 }
 
 public enum ButtonGesture: String, CaseIterable, Codable, Hashable, Sendable {
-    case tap, hold
+    case tap, doubleTap, hold
 }
 
 public enum AppLanguage: String, CaseIterable, Codable, Hashable, Sendable {
@@ -148,6 +148,8 @@ public struct ProfileMappings: Codable, Hashable, Sendable {
 
 public struct AppConfiguration: Codable, Hashable, Sendable {
     public var holdThresholdMilliseconds: Int
+    /// Nil is retained for configurations saved before double-click support.
+    public var doubleTapIntervalMilliseconds: Int?
     public var selectedDeviceID: String?
     /// Nil is retained for configurations saved before Dock visibility existed.
     public var showsInDock: Bool?
@@ -164,8 +166,9 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
     public var cloudProviders: [CloudProvider: CloudProviderConfiguration]?
     public var mappings: [AppProfile: ProfileMappings]
 
-    public init(holdThresholdMilliseconds: Int = 600, selectedDeviceID: String? = nil, showsInDock: Bool? = true, interfaceLanguage: AppLanguage? = .english, appearance: AppAppearance? = .system, tvApplicationBundleIdentifier: String? = nil, tvApplicationName: String? = nil, voiceInputMode: VoiceInputMode? = .disabled, transcriptionSource: TranscriptionSource? = .localSpeech, speechRecognitionLanguage: SpeechRecognitionLanguage? = .automatic, voiceTranscriptionTiming: VoiceTranscriptionTiming? = .afterRecording, cloudTranscriptionProvider: CloudProvider? = .openAI, cloudProviders: [CloudProvider: CloudProviderConfiguration]? = nil, mappings: [AppProfile: ProfileMappings] = AppConfiguration.defaultMappings) {
+    public init(holdThresholdMilliseconds: Int = 600, doubleTapIntervalMilliseconds: Int? = 300, selectedDeviceID: String? = nil, showsInDock: Bool? = true, interfaceLanguage: AppLanguage? = .english, appearance: AppAppearance? = .system, tvApplicationBundleIdentifier: String? = nil, tvApplicationName: String? = nil, voiceInputMode: VoiceInputMode? = .disabled, transcriptionSource: TranscriptionSource? = .localSpeech, speechRecognitionLanguage: SpeechRecognitionLanguage? = .automatic, voiceTranscriptionTiming: VoiceTranscriptionTiming? = .afterRecording, cloudTranscriptionProvider: CloudProvider? = .openAI, cloudProviders: [CloudProvider: CloudProviderConfiguration]? = nil, mappings: [AppProfile: ProfileMappings] = AppConfiguration.defaultMappings) {
         self.holdThresholdMilliseconds = min(1_500, max(300, holdThresholdMilliseconds))
+        self.doubleTapIntervalMilliseconds = doubleTapIntervalMilliseconds.map { min(800, max(150, $0)) }
         self.selectedDeviceID = selectedDeviceID
         self.showsInDock = showsInDock
         self.interfaceLanguage = interfaceLanguage
@@ -222,7 +225,7 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
         browser.set(.useDefault, for: .tv, gesture: .hold)
         noPlayPause.set(.useDefault, for: .tv, gesture: .tap)
         noPlayPause.set(.useDefault, for: .tv, gesture: .hold)
-        return [
+        var mappings: [AppProfile: ProfileMappings] = [
             .default: universal,
             .terminal: terminal,
             .ghostty: terminal,
@@ -232,6 +235,16 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
             .edge: browser,
             .chatGPT: noPlayPause
         ]
+        // Double-tap is deliberately explicit so every profile presents the
+        // same safe default in the mapping UI.
+        for profile in AppProfile.allCases {
+            guard var mapping = mappings[profile] else { continue }
+            for button in RemoteButton.allCases {
+                mapping.set(.none, for: button, gesture: .doubleTap)
+            }
+            mappings[profile] = mapping
+        }
+        return mappings
     }()
 
     public static func allowedActions(for profile: AppProfile) -> [RemoteAction] {
@@ -246,6 +259,7 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
 
     public func normalized() -> AppConfiguration {
         var copy = self
+        copy.doubleTapIntervalMilliseconds = min(800, max(150, copy.doubleTapIntervalMilliseconds ?? 300))
         copy.voiceInputMode = copy.voiceInputMode ?? .disabled
         copy.transcriptionSource = copy.transcriptionSource ?? .localSpeech
         copy.speechRecognitionLanguage = copy.speechRecognitionLanguage ?? .automatic
@@ -262,6 +276,9 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
             mapping.bindings = mapping.bindings.map {
                 let action: RemoteAction = $0.action == .activateChatGPT ? .launchSelectedApplication : $0.action
                 return ButtonBinding(button: $0.button, gesture: $0.gesture, action: allowed.contains(action) ? action : .none)
+            }
+            for button in RemoteButton.allCases where !mapping.bindings.contains(where: { $0.button == button && $0.gesture == .doubleTap }) {
+                mapping.set(.none, for: button, gesture: .doubleTap)
             }
             copy.mappings[profile] = mapping
         }

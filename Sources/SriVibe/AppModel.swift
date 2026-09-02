@@ -46,7 +46,7 @@ final class AppModel: ObservableObject {
     init() {
         let loaded = ConfigurationStore().load()
         configuration = loaded
-        gestureEngine = ButtonGestureEngine(holdThresholdMilliseconds: loaded.holdThresholdMilliseconds)
+        gestureEngine = ButtonGestureEngine(holdThresholdMilliseconds: loaded.holdThresholdMilliseconds, doubleTapIntervalMilliseconds: loaded.doubleTapIntervalMilliseconds ?? 300)
         monitor.captureRawInput = touchpadDiagnosticMode
         monitor.onDevicesChanged = { [weak self] devices in Task { @MainActor in self?.setDevices(devices) } }
         monitor.onButtonEvent = { [weak self] button, isPressed in Task { @MainActor in self?.handle(button, isPressed: isPressed) } }
@@ -177,7 +177,13 @@ final class AppModel: ObservableObject {
 
     func updateHoldThreshold(_ milliseconds: Int) {
         configuration.holdThresholdMilliseconds = milliseconds
-        gestureEngine = ButtonGestureEngine(holdThresholdMilliseconds: milliseconds)
+        gestureEngine = ButtonGestureEngine(holdThresholdMilliseconds: milliseconds, doubleTapIntervalMilliseconds: configuration.doubleTapIntervalMilliseconds ?? 300)
+        persist()
+    }
+
+    func updateDoubleTapInterval(_ milliseconds: Int) {
+        configuration.doubleTapIntervalMilliseconds = milliseconds
+        gestureEngine = ButtonGestureEngine(holdThresholdMilliseconds: configuration.holdThresholdMilliseconds, doubleTapIntervalMilliseconds: milliseconds)
         persist()
     }
 
@@ -291,6 +297,7 @@ final class AppModel: ObservableObject {
         }
         if button == .volumeUp || button == .volumeDown {
             let hasVolumeTapMapping = action(for: button, gesture: .tap, profile: currentProfile) != .none
+                || action(for: button, gesture: .doubleTap, profile: currentProfile) != .none
             if hasVolumeTapMapping {
                 if isPressed { nativeMediaEventSuppressor.beginSuppressingVolume(up: button == .volumeUp) }
                 else { nativeMediaEventSuppressor.endSuppressingVolume(up: button == .volumeUp) }

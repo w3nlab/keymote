@@ -7,7 +7,18 @@ import Foundation
     let start = Date(timeIntervalSince1970: 10)
     engine.press(.center, at: start)
     #expect(engine.advance(to: start.addingTimeInterval(0.5)).isEmpty)
-    #expect(engine.release(.center, at: start.addingTimeInterval(0.51)) == [.perform(.center, .tap)])
+    #expect(engine.release(.center, at: start.addingTimeInterval(0.51)).isEmpty)
+    #expect(engine.advance(to: start.addingTimeInterval(0.82)) == [.perform(.center, .tap)])
+}
+
+@Test func doubleTapSuppressesThePendingSingleTap() {
+    var engine = ButtonGestureEngine(holdThresholdMilliseconds: 600, doubleTapIntervalMilliseconds: 300)
+    let start = Date(timeIntervalSince1970: 10)
+    engine.press(.center, at: start)
+    #expect(engine.release(.center, at: start.addingTimeInterval(0.05)).isEmpty)
+    engine.press(.center, at: start.addingTimeInterval(0.15))
+    #expect(engine.release(.center, at: start.addingTimeInterval(0.20)) == [.perform(.center, .doubleTap)])
+    #expect(engine.advance(to: start.addingTimeInterval(0.60)).isEmpty)
 }
 
 @Test func holdSuppressesTap() {
@@ -35,6 +46,7 @@ import Foundation
     #expect(AppProfile.forBundleIdentifier("unknown") == .default)
     let config = AppConfiguration()
     #expect(config.voiceTranscriptionTiming == .afterRecording)
+    #expect(config.doubleTapIntervalMilliseconds == 300)
     #expect(config.mappings[.terminal]?.action(for: .center, gesture: .tap) == .confirm)
     #expect(config.mappings[.default]?.action(for: .back, gesture: .hold) == .quitApplication)
     #expect(config.mappings[.chatGPT]?.action(for: .playPause, gesture: .tap) == RemoteAction.none)
@@ -47,6 +59,11 @@ import Foundation
     #expect(config.mappings[.chrome]?.action(for: .playPause, gesture: .hold) == RemoteAction.none)
     #expect(config.mappings[.default]?.action(for: .mute, gesture: .tap) == .toggleMute)
     #expect(config.mappings[.default]?.action(for: .siri, gesture: .tap) == .toggleVoiceTranscription)
+    for profile in AppProfile.allCases {
+        for button in RemoteButton.allCases {
+            #expect(config.mappings[profile]?.action(for: button, gesture: .doubleTap) == RemoteAction.none)
+        }
+    }
 }
 
 @Test func nonTerminalProfilesRejectTerminalTabActions() {
