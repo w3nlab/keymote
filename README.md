@@ -22,6 +22,15 @@ Remote (A2854) to keyboard and system actions.
   on-device macOS Speech by default, or configure OpenAI/OpenRouter cloud
   transcription; cloud credentials are encrypted in local configuration.
 
+## Roadmap
+
+See the [Phase 1 completed summary](docs/phase-1-completed.md) for the shipped
+feature set and current boundaries.
+
+The [Phase 2 development plan](docs/phase-2-development-plan.md) covers
+user-created app profiles, custom shortcut actions with conflict handling, and
+signed application updates.
+
 ## Run and build
 
 ```sh

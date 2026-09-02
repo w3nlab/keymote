@@ -17,20 +17,23 @@ struct InteractiveRemoteLayout: View {
     private var language: AppLanguage { model.language }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 24) {
-            remote
-                .frame(width: 210, height: 520)
-            annotations
-                // A fixed legend width keeps the scroll content finite. In a
-                // horizontal ScrollView, an infinite-width child can otherwise
-                // push the remote under the fixed Profile sidebar.
-                .frame(width: 272, alignment: .leading)
-                // ScrollView otherwise expands to the remote's full height,
-                // defeating the HStack's centre alignment.
-                .frame(height: 400)
+        GeometryReader { proxy in
+            let remoteWidth = min(max(210, proxy.size.width * 0.30), 320)
+            let scale = remoteWidth / 210
+            let remoteHeight = 520 * scale
+            HStack(alignment: .top, spacing: max(24, proxy.size.width * 0.035)) {
+                remote
+                    .frame(width: 210, height: 520)
+                    .scaleEffect(scale, anchor: .topLeading)
+                    .frame(width: remoteWidth, height: remoteHeight, alignment: .topLeading)
+                annotations
+                    .frame(minWidth: 300, maxWidth: .infinity, alignment: .leading)
+                    .frame(height: max(420, min(560, remoteHeight - 24)))
+            }
+            .padding(32)
+            .frame(width: proxy.size.width, alignment: .leading)
         }
-        .padding(24)
-        .frame(minWidth: 554, alignment: .leading)
+        .frame(minHeight: 620)
     }
 
     private var remote: some View {

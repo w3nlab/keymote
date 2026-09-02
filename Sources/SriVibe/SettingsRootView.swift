@@ -20,7 +20,7 @@ struct SettingsRootView: View {
             permissionsView.tabItem { Label(t("permissions"), systemImage: "lock.shield") }
             diagnosticsView.tabItem { Label(t("diagnostics"), systemImage: "stethoscope") }
         }
-        .frame(minWidth: 680, minHeight: 460)
+        .frame(minWidth: 900, minHeight: 640)
         .padding()
         .preferredColorScheme(model.preferredColorScheme)
     }
@@ -168,8 +168,9 @@ struct SettingsRootView: View {
     @ViewBuilder
     private var layoutEditor: some View {
         if RemoteLayoutRegistry.supports(model.selectedDevice?.layoutID) || model.selectedDevice == nil {
-            ScrollView([.horizontal, .vertical]) {
+            ScrollView(.vertical) {
                 InteractiveRemoteLayout(model: model, profile: selectedProfile, selectedButton: $selectedButton)
+                    .frame(maxWidth: .infinity)
             }
         } else {
             ContentUnavailableView(

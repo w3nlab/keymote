@@ -6,12 +6,13 @@ final class SettingsWindowController: NSWindowController {
     init(model: AppModel) {
         let view = SettingsRootView(model: model)
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 972, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Keymote"
+        window.minSize = NSSize(width: 900, height: 640)
         window.contentView = NSHostingView(rootView: view)
         window.isReleasedWhenClosed = false
         window.center()
