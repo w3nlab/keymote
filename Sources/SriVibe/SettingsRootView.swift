@@ -70,6 +70,11 @@ struct SettingsRootView: View {
                         Text(model.language == .chinese ? "macOS 本地 Speech" : "macOS local Speech").tag(TranscriptionSource.localSpeech)
                         Text(model.language == .chinese ? "云端模型" : "Cloud model").tag(TranscriptionSource.cloud)
                     }
+                    Picker(model.language == .chinese ? "语音识别语言" : "Speech recognition language", selection: Binding(get: { model.speechRecognitionLanguage }, set: { model.setSpeechRecognitionLanguage($0) })) {
+                        Text(model.language == .chinese ? "跟随 macOS" : "Follow macOS").tag(SpeechRecognitionLanguage.automatic)
+                        Text("English (United States)").tag(SpeechRecognitionLanguage.englishUS)
+                        Text("中文（简体，中国大陆）").tag(SpeechRecognitionLanguage.chineseSimplified)
+                    }
                     if model.transcriptionSource == .cloud {
                         Picker(model.language == .chinese ? "云端转写提供者" : "Cloud transcription provider", selection: Binding(get: { model.cloudTranscriptionProvider }, set: { model.setCloudTranscriptionProvider($0) })) {
                             ForEach(CloudProvider.allCases.filter(\.supportsTranscription), id: \.self) { provider in
@@ -77,7 +82,7 @@ struct SettingsRootView: View {
                             }
                         }
                     }
-                    Text(model.language == .chinese ? "默认 Profile 中，轻按 Siri 键开始/停止录音。文本会复制并尝试粘贴。" : "In the Default profile, tap Siri to start/stop recording. Text is copied and then pasted when permitted.")
+                    Text(model.language == .chinese ? "将 Siri 轻按设为“语音转写”；非默认 Profile 可设为“默认”以继承默认 Profile。" : "Set Siri tap to Voice transcription; non-default profiles can use Default to inherit the Default profile.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -342,12 +347,14 @@ extension RemoteAction {
         switch self {
         case .none: L10n.text("noAction", language)
         case .useDefault: language == .chinese ? "默认" : "Default"
+        case .toggleVoiceTranscription: language == .chinese ? "语音转写" : "Voice transcription"
         case .arrowUp: L10n.text("up", language)
         case .arrowDown: L10n.text("down", language)
         case .arrowLeft: L10n.text("left", language)
         case .arrowRight: L10n.text("right", language)
         case .confirm: L10n.text("return", language)
         case .escape: L10n.text("escape", language)
+        case .delete: L10n.text("delete", language)
         case .nextTerminalTab: L10n.text("nextTab", language)
         case .previousTerminalTab: L10n.text("previousTab", language)
         case .togglePlayPause: language == .chinese ? "播放 / 暂停" : "Play / Pause"

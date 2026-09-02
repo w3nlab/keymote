@@ -13,7 +13,7 @@ enum L10n {
             "accessibilityGranted": "Accessibility granted", "accessibilityRequired": "Accessibility required", "accessibilityDescription": "Allows Keymote to send configured keyboard actions to the frontmost application.",
             "requestPermissions": "Request permissions", "refresh": "Refresh", "runtimeStatus": "Runtime status", "currentProfile": "Current profile: %@", "noDiagnostics": "No diagnostic events yet.", "copyDiagnostics": "Copy diagnostics",
             "v1Scope": "Mac microphone transcription is available when enabled. Siri Remote microphone capture remains experimental and unavailable.", "tap": "Tap", "holdAction": "Hold",
-            "default": "Default", "playPause": "Play / Pause", "noAction": "No action", "up": "Up arrow", "down": "Down arrow", "left": "Left arrow", "right": "Right arrow", "return": "Return", "escape": "Escape",
+            "default": "Default", "playPause": "Play / Pause", "noAction": "No action", "up": "Up arrow", "down": "Down arrow", "left": "Left arrow", "right": "Right arrow", "return": "Return", "escape": "Escape", "delete": "Delete",
             "nextTab": "Next terminal tab", "previousTab": "Previous terminal tab", "switchApp": "Switch application", "exitSwitcher": "Exit application switcher", "activateChatGPT": "Activate ChatGPT",
             "system": "System", "light": "Light", "dark": "Dark", "english": "English", "chinese": "中文",
             "openSettings": "Open Settings…", "quit": "Quit Keymote", "waiting": "Waiting for a paired Siri Remote", "diagnosticMode": "Diagnostic input mode — no actions are injected", "connected": "Connected: %@", "accessibilityNeeded": "Accessibility permission is required to perform actions", "diagnosticsCopied": "Diagnostics copied to clipboard"
@@ -28,7 +28,7 @@ enum L10n {
             "accessibilityGranted": "已授予辅助功能权限", "accessibilityRequired": "需要辅助功能权限", "accessibilityDescription": "允许 Keymote 向前台应用发送已配置的按键操作。",
             "requestPermissions": "请求权限", "refresh": "刷新", "runtimeStatus": "运行状态", "currentProfile": "当前 Profile：%@", "noDiagnostics": "暂无诊断事件。", "copyDiagnostics": "复制诊断信息",
             "v1Scope": "启用后可使用 Mac 麦克风转写；Siri Remote 麦克风采集仍为实验性功能，暂不可用。", "tap": "轻按", "holdAction": "长按",
-            "default": "默认", "playPause": "播放 / 暂停", "noAction": "无操作", "up": "上方向键", "down": "下方向键", "left": "左方向键", "right": "右方向键", "return": "回车", "escape": "退出",
+            "default": "默认", "playPause": "播放 / 暂停", "noAction": "无操作", "up": "上方向键", "down": "下方向键", "left": "左方向键", "right": "右方向键", "return": "回车", "escape": "退出", "delete": "删除",
             "nextTab": "下一个终端标签页", "previousTab": "上一个终端标签页", "switchApp": "切换应用", "exitSwitcher": "退出应用切换", "activateChatGPT": "激活 ChatGPT",
             "system": "跟随系统", "light": "浅色", "dark": "深色", "english": "English", "chinese": "中文",
             "openSettings": "打开设置…", "quit": "退出 Keymote", "waiting": "正在等待已配对的 Siri Remote", "diagnosticMode": "诊断输入模式 — 不会发送任何操作", "connected": "已连接：%@", "accessibilityNeeded": "执行操作需要辅助功能权限", "diagnosticsCopied": "诊断信息已复制到剪贴板"

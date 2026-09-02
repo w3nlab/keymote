@@ -12,12 +12,14 @@ final class ActionExecutor {
         switch action {
         case .none: return "No action assigned"
         case .useDefault: return "Default action unavailable"
+        case .toggleVoiceTranscription: return "Voice transcription is handled by Keymote"
         case .arrowUp: key(126); return "Up"
         case .arrowDown: key(125); return "Down"
         case .arrowLeft: key(123); return "Left"
         case .arrowRight: key(124); return "Right"
         case .confirm: key(36); return "Return"
         case .escape: key(53); return "Escape"
+        case .delete: key(51); return "Delete"
         case .nextTerminalTab:
             sendNextTerminalTabShortcut(for: profile)
             return "Next terminal tab"

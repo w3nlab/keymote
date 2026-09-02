@@ -60,6 +60,7 @@ final class AppModel: ObservableObject {
     var appearance: AppAppearance { configuration.appearance ?? .system }
     var voiceInputMode: VoiceInputMode { configuration.voiceInputMode ?? .disabled }
     var transcriptionSource: TranscriptionSource { configuration.transcriptionSource ?? .localSpeech }
+    var speechRecognitionLanguage: SpeechRecognitionLanguage { configuration.speechRecognitionLanguage ?? .automatic }
     var cloudTranscriptionProvider: CloudProvider { configuration.cloudTranscriptionProvider ?? .openAI }
     var tvApplicationName: String { configuration.tvApplicationName ?? "ChatGPT" }
     var preferredColorScheme: ColorScheme? {
@@ -188,6 +189,11 @@ final class AppModel: ObservableObject {
         persist()
     }
 
+    func setSpeechRecognitionLanguage(_ language: SpeechRecognitionLanguage) {
+        configuration.speechRecognitionLanguage = language
+        persist()
+    }
+
     func setCloudTranscriptionProvider(_ provider: CloudProvider) {
         guard provider.supportsTranscription else { return }
         configuration.cloudTranscriptionProvider = provider
@@ -259,7 +265,7 @@ final class AppModel: ObservableObject {
         let next = AppProfile.forBundleIdentifier(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
         guard currentProfile != next else { return }
         currentProfile = next
-        if next != .default, voiceState != .idle {
+        if voiceState != .idle {
             voiceService.cancel()
             voiceState = .idle
             lastMessage = language == .chinese ? "因切换应用已取消录音" : "Recording cancelled because the active profile changed"
@@ -291,10 +297,6 @@ final class AppModel: ObservableObject {
         guard !outputs.isEmpty else { return }
         updateProfile()
         for case let .perform(button, gesture) in outputs {
-            if button == .siri, gesture == .tap, currentProfile == .default, voiceInputMode == .macMicrophone {
-                toggleVoiceTranscription()
-                continue
-            }
             if let switcherResult = performApplicationSwitcherAction(for: button) {
                 lastMessage = switcherResult
                 recordDiagnostic("Application switcher: \(switcherResult)")
@@ -305,6 +307,14 @@ final class AppModel: ObservableObject {
             recordDiagnostic("\(currentProfile.rawValue): \(button.rawValue) \(gesture.rawValue) → \(action.rawValue)")
             if diagnosticInputMode {
                 lastMessage = "Captured \(button.rawValue) \(gesture.rawValue)"
+                continue
+            }
+            if action == .toggleVoiceTranscription {
+                guard voiceInputMode == .macMicrophone else {
+                    lastMessage = language == .chinese ? "请先在设备设置中启用 Mac 麦克风转写" : "Enable Mac microphone transcription in Device settings first"
+                    continue
+                }
+                toggleVoiceTranscription()
                 continue
             }
             guard accessibilityGranted else {
@@ -323,6 +333,7 @@ final class AppModel: ObservableObject {
         recordDiagnostic("Voice: Siri tap received state=\(voiceState) mode=\(voiceInputMode.rawValue) profile=\(currentProfile.rawValue)")
         if voiceState == .idle {
             let source = transcriptionSource
+            let recognitionLanguage = speechRecognitionLanguage
             if source == .cloud {
                 let provider = cloudTranscriptionProvider
                 guard provider.supportsTranscription else {
@@ -341,7 +352,7 @@ final class AppModel: ObservableObject {
             lastMessage = language == .chinese ? "正在启动录音…" : "Starting recording…"
             Task {
                 do {
-                    try await voiceService.start(source: source)
+                    try await voiceService.start(source: source, localeIdentifier: recognitionLanguage.localeIdentifier)
                     voiceState = .recording
                     lastMessage = language == .chinese ? "正在录音，再次轻按 Siri 键结束" : "Recording — tap Siri again to stop"
                 } catch {
@@ -357,7 +368,7 @@ final class AppModel: ObservableObject {
             let source = transcriptionSource
             let provider = cloudTranscriptionProvider
             let cloud = cloudConfiguration(for: provider)
-            let languageCode = Locale.autoupdatingCurrent.language.languageCode?.identifier
+            let languageCode = speechRecognitionLanguage.languageCode ?? Locale.autoupdatingCurrent.language.languageCode?.identifier
             Task {
                 do {
                     let text = try await voiceService.stop(source: source, cloudProvider: provider, cloudConfiguration: cloud, languageCode: languageCode)

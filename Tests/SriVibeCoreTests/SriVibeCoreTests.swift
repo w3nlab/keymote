@@ -45,6 +45,7 @@ import Foundation
     #expect(config.mappings[.chrome]?.action(for: .playPause, gesture: .tap) == .togglePlayPause)
     #expect(config.mappings[.chrome]?.action(for: .playPause, gesture: .hold) == RemoteAction.none)
     #expect(config.mappings[.default]?.action(for: .mute, gesture: .tap) == .toggleMute)
+    #expect(config.mappings[.default]?.action(for: .siri, gesture: .tap) == .toggleVoiceTranscription)
 }
 
 @Test func nonTerminalProfilesRejectTerminalTabActions() {

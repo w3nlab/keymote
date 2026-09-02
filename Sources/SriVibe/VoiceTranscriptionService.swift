@@ -122,7 +122,7 @@ final class VoiceTranscriptionService {
 
     init(gateway: CloudModelGateway = CloudModelGateway()) { self.gateway = gateway }
 
-    func start(source: TranscriptionSource) async throws {
+    func start(source: TranscriptionSource, localeIdentifier: String? = nil) async throws {
         guard state == .idle else { return }
         onDiagnostic?("Voice: start requested source=\(source.rawValue)")
         let microphone = AVCaptureDevice.authorizationStatus(for: .audio)
@@ -134,7 +134,7 @@ final class VoiceTranscriptionService {
             } else { throw VoiceTranscriptionError.microphoneDenied }
             return try await start(source: source)
         }
-        if source == .localSpeech { try await prepareLocalRecognition() }
+        if source == .localSpeech { try await prepareLocalRecognition(localeIdentifier: localeIdentifier) }
 
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
@@ -204,7 +204,7 @@ final class VoiceTranscriptionService {
         cleanup()
     }
 
-    private func prepareLocalRecognition() async throws {
+    private func prepareLocalRecognition(localeIdentifier: String?) async throws {
         let status = SFSpeechRecognizer.authorizationStatus()
         onDiagnostic?("Voice: Speech authorization=\(status.rawValue)")
         if status == .notDetermined {
@@ -220,7 +220,7 @@ final class VoiceTranscriptionService {
         let current = Locale.autoupdatingCurrent
         let language = current.language.languageCode?.identifier ?? "en"
         let region = current.region?.identifier ?? "US"
-        let locale = Locale(identifier: "\(language)-\(region)")
+        let locale = Locale(identifier: localeIdentifier ?? "\(language)-\(region)")
         // Do not synchronously query supportsOnDeviceRecognition here. On
         // recent macOS releases that property can block while the speech
         // model is being loaded. The recognition task reports availability

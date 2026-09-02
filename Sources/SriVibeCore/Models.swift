@@ -29,6 +29,28 @@ public enum TranscriptionSource: String, CaseIterable, Codable, Hashable, Sendab
     case cloud
 }
 
+public enum SpeechRecognitionLanguage: String, CaseIterable, Codable, Hashable, Sendable {
+    case automatic
+    case englishUS
+    case chineseSimplified
+
+    public var localeIdentifier: String? {
+        switch self {
+        case .automatic: nil
+        case .englishUS: "en-US"
+        case .chineseSimplified: "zh-CN"
+        }
+    }
+
+    public var languageCode: String? {
+        switch self {
+        case .automatic: nil
+        case .englishUS: "en"
+        case .chineseSimplified: "zh"
+        }
+    }
+}
+
 public enum CloudProvider: String, CaseIterable, Codable, Hashable, Sendable {
     case anthropic
     case openAI
@@ -55,8 +77,9 @@ public struct CloudProviderConfiguration: Codable, Hashable, Sendable {
 public enum RemoteAction: String, CaseIterable, Codable, Hashable, Sendable {
     case none
     case useDefault
+    case toggleVoiceTranscription
     case arrowUp, arrowDown, arrowLeft, arrowRight
-    case confirm, escape
+    case confirm, escape, delete
     case nextTerminalTab, previousTerminalTab
     case togglePlayPause
     case toggleMute
@@ -130,11 +153,12 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
     public var tvApplicationName: String?
     public var voiceInputMode: VoiceInputMode?
     public var transcriptionSource: TranscriptionSource?
+    public var speechRecognitionLanguage: SpeechRecognitionLanguage?
     public var cloudTranscriptionProvider: CloudProvider?
     public var cloudProviders: [CloudProvider: CloudProviderConfiguration]?
     public var mappings: [AppProfile: ProfileMappings]
 
-    public init(holdThresholdMilliseconds: Int = 600, selectedDeviceID: String? = nil, showsInDock: Bool? = true, interfaceLanguage: AppLanguage? = .english, appearance: AppAppearance? = .system, tvApplicationBundleIdentifier: String? = nil, tvApplicationName: String? = nil, voiceInputMode: VoiceInputMode? = .disabled, transcriptionSource: TranscriptionSource? = .localSpeech, cloudTranscriptionProvider: CloudProvider? = .openAI, cloudProviders: [CloudProvider: CloudProviderConfiguration]? = nil, mappings: [AppProfile: ProfileMappings] = AppConfiguration.defaultMappings) {
+    public init(holdThresholdMilliseconds: Int = 600, selectedDeviceID: String? = nil, showsInDock: Bool? = true, interfaceLanguage: AppLanguage? = .english, appearance: AppAppearance? = .system, tvApplicationBundleIdentifier: String? = nil, tvApplicationName: String? = nil, voiceInputMode: VoiceInputMode? = .disabled, transcriptionSource: TranscriptionSource? = .localSpeech, speechRecognitionLanguage: SpeechRecognitionLanguage? = .automatic, cloudTranscriptionProvider: CloudProvider? = .openAI, cloudProviders: [CloudProvider: CloudProviderConfiguration]? = nil, mappings: [AppProfile: ProfileMappings] = AppConfiguration.defaultMappings) {
         self.holdThresholdMilliseconds = min(1_500, max(300, holdThresholdMilliseconds))
         self.selectedDeviceID = selectedDeviceID
         self.showsInDock = showsInDock
@@ -144,6 +168,7 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
         self.tvApplicationName = tvApplicationName
         self.voiceInputMode = voiceInputMode
         self.transcriptionSource = transcriptionSource
+        self.speechRecognitionLanguage = speechRecognitionLanguage
         self.cloudTranscriptionProvider = cloudTranscriptionProvider
         self.cloudProviders = cloudProviders
         self.mappings = mappings
@@ -162,7 +187,7 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
             .init(button: .tv, gesture: .hold, action: .switchApplication),
             .init(button: .playPause, gesture: .tap, action: .togglePlayPause),
             .init(button: .mute, gesture: .tap, action: .toggleMute),
-            .init(button: .siri, gesture: .tap, action: .none),
+            .init(button: .siri, gesture: .tap, action: .toggleVoiceTranscription),
             .init(button: .siri, gesture: .hold, action: .none)
         ]
         var terminal = ProfileMappings(bindings: universalBindings.filter { $0.button != .playPause } + [
@@ -179,7 +204,7 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
             .init(button: .volumeDown, gesture: .tap, action: .previousTerminalTab),
             .init(button: .volumeUp, gesture: .hold, action: .adjustVolumeUp),
             .init(button: .volumeDown, gesture: .hold, action: .adjustVolumeDown),
-            .init(button: .siri, gesture: .tap, action: .none),
+            .init(button: .siri, gesture: .tap, action: .toggleVoiceTranscription),
             .init(button: .siri, gesture: .hold, action: .none)
         ])
         let universal = ProfileMappings(bindings: universalBindings)
@@ -203,7 +228,7 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
     }()
 
     public static func allowedActions(for profile: AppProfile) -> [RemoteAction] {
-        var actions: [RemoteAction] = [.none, .arrowUp, .arrowDown, .arrowLeft, .arrowRight, .confirm, .escape, .togglePlayPause, .toggleMute, .quitApplication, .adjustVolumeUp, .adjustVolumeDown, .switchApplication, .exitApplicationSwitcher, .launchSelectedApplication]
+        var actions: [RemoteAction] = [.none, .toggleVoiceTranscription, .arrowUp, .arrowDown, .arrowLeft, .arrowRight, .confirm, .escape, .delete, .togglePlayPause, .toggleMute, .quitApplication, .adjustVolumeUp, .adjustVolumeDown, .switchApplication, .exitApplicationSwitcher, .launchSelectedApplication]
         if profile != .default { actions.insert(.useDefault, at: 1) }
         if profile.supportsTabs {
             actions.insert(.nextTerminalTab, at: 7)
@@ -216,6 +241,7 @@ public struct AppConfiguration: Codable, Hashable, Sendable {
         var copy = self
         copy.voiceInputMode = copy.voiceInputMode ?? .disabled
         copy.transcriptionSource = copy.transcriptionSource ?? .localSpeech
+        copy.speechRecognitionLanguage = copy.speechRecognitionLanguage ?? .automatic
         copy.cloudTranscriptionProvider = copy.cloudTranscriptionProvider ?? .openAI
         var providers = copy.cloudProviders ?? [:]
         for provider in CloudProvider.allCases where providers[provider] == nil {
